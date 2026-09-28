@@ -3,6 +3,7 @@ import electronUpdater from 'electron-updater'
 import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater'
 import { loadDataApiConfig } from './data-loader.ts'
 import logger from './modules/logger.ts'
+import { FORK_UPDATE_NOTICE, IS_FORK_BUILD } from './fork-info.ts'
 import { allowMainWindowClose } from './modules/window-manager.ts'
 import {
   normalizeTrustedUpdateFeedUrl,
@@ -196,7 +197,14 @@ function broadcastUpdateState(): void {
 }
 
 function isRuntimeUpdateAllowed(): boolean {
+  if (IS_FORK_BUILD) {
+    return false
+  }
   return app.isPackaged || DEV_UPDATE_CHECK_ENABLED
+}
+
+function getRuntimeUpdateDisabledMessage(): string {
+  return IS_FORK_BUILD ? FORK_UPDATE_NOTICE : '开发模式已跳过自动更新'
 }
 
 function normalizeFeedUrl(value: unknown): string {
@@ -488,7 +496,7 @@ export function initializeAppUpdateService(options: InitializeOptions): void {
     autoUpdateEnabled: false,
     feedUrl: '',
     feedConfigured: false,
-    message: runtimeAllowed ? '自动更新未启用' : '开发模式已跳过自动更新',
+    message: runtimeAllowed ? '自动更新未启用' : getRuntimeUpdateDisabledMessage(),
   })
 }
 
@@ -584,7 +592,7 @@ export async function refreshAppUpdateConfig(options: RefreshOptions = {}): Prom
         progress: null,
         error: message,
         message: autoUpdateUnavailable
-          ? (isRuntimeUpdateAllowed() ? '自动更新未启用' : '开发模式已跳过自动更新')
+          ? (isRuntimeUpdateAllowed() ? '自动更新未启用' : getRuntimeUpdateDisabledMessage())
           : '未读取到自动更新配置',
       })
       return {
@@ -633,7 +641,7 @@ export async function refreshAppUpdateConfig(options: RefreshOptions = {}): Prom
       downloaded: false,
       downloadDeferred: false,
       progress: null,
-      message: isDevRuntime ? '开发模式已跳过自动更新' : '自动更新不可用',
+      message: IS_FORK_BUILD ? FORK_UPDATE_NOTICE : (isDevRuntime ? '开发模式已跳过自动更新' : '自动更新不可用'),
     })
     return {
       success: true,
