@@ -114,6 +114,37 @@ describe('ARAM item set builder', () => {
     expect(result.itemSets.map(itemSet => itemSet.title)).toEqual(['AD / Bruiser', 'AD / Bruiser 2'])
   })
 
+  it('does not number a route whose name is a prefix of another route', () => {
+    const result = createItemSets(
+      { championId: 22, alias: 'Ashe' },
+      null,
+      [
+        { tags: { style: 'AD, Crit' }, games: 1000, coreItems: [{ itemIds: [3031, 3006, 3072], games: 500 }] },
+        { tags: { style: 'AD' }, games: 900, coreItems: [{ itemIds: [3142, 3006, 6676], games: 400 }] },
+      ]
+    )
+
+    expect(result.itemSets.map(itemSet => itemSet.title)).toEqual(['AD / Crit', 'AD'])
+  })
+
+  it('caps later and alternative item blocks at five items', () => {
+    const result = createItemSets(
+      { championId: 1, alias: 'Annie' },
+      null,
+      [{
+        tags: { style: 'AP' },
+        games: 1000,
+        coreItems: [{ itemIds: [6653, 3020, 4645], games: 500 }],
+        itemExtensions: Array.from({ length: 8 }, (_, index) => ({ itemIds: [4000 + index], games: 100 - index })),
+        situationalItems: Array.from({ length: 9 }, (_, index) => ({ itemId: 5000 + index, games: 100 - index })),
+      }]
+    )
+
+    const blocks = result.itemSets[0].blocks
+    expect(blocks.find(block => block.type === '后续装备')?.items).toHaveLength(5)
+    expect(blocks.find(block => block.type === '备选装备')?.items).toHaveLength(5)
+  })
+
   it('also accepts a raw builds array', () => {
     const result = createItemSets(
       { championId: 1, alias: 'Annie' },

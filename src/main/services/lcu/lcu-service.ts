@@ -534,6 +534,8 @@ const buildChampSelectSnapshot = (
 /**
  * LCU 服务配置选项
  */
+const FOREIGN_ITEM_SET_TITLE_PREFIXES = ['OP.GG ']
+
 export interface LCUServiceOptions {
   /** Token 缓存时长（毫秒），默认 60000 */
   tokenCacheDuration?: number
@@ -1075,7 +1077,13 @@ export class LCUService {
       })
       const currentPayload = current.data && typeof current.data === 'object' ? current.data : {}
       const currentItemSets = Array.isArray(currentPayload.itemSets) ? currentPayload.itemSets : []
-      const nextItemSets = currentItemSets.filter((set: any) => !isManagedAramggItemSet(set))
+      // OP.GG 桌面端写入的推荐页会残留在客户端里并对所有英雄显示、抢占默认标签；
+      // 这里一并清掉（OP.GG 运行时会自动重建自己的页，不会丢东西）。
+      const isForeignRecommendationSet = (set: any) =>
+        FOREIGN_ITEM_SET_TITLE_PREFIXES.some((prefix) => String(set?.title || '').startsWith(prefix))
+      const nextItemSets = currentItemSets.filter(
+        (set: any) => !isManagedAramggItemSet(set) && !isForeignRecommendationSet(set)
+      )
       const removedCount = currentItemSets.length - nextItemSets.length
 
       nextItemSets.unshift(...managedItemSets)

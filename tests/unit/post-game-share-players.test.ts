@@ -79,3 +79,37 @@ describe('post-game poster players', () => {
     expect(players).toEqual([])
   })
 })
+
+describe('post-game poster players: team containers', () => {
+  it('does not treat a team object (with its own stats block) as a player', async () => {
+    const payload = {
+      teams: [
+        {
+          teamId: 100,
+          isWinningTeam: true,
+          stats: { CHAMPIONS_KILLED: 30, TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: 0, TOTAL_DAMAGE_TAKEN: 0 },
+          players: [
+            eogPlayer('First', 1, 100, 33000, 21000),
+            eogPlayer('Second', 2, 100, 27000, 19000),
+          ],
+        },
+        {
+          teamId: 200,
+          isWinningTeam: false,
+          stats: { CHAMPIONS_KILLED: 12, TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: 0, TOTAL_DAMAGE_TAKEN: 0 },
+          players: [eogPlayer('Third', 3, 200, 18000, 26000)],
+        },
+      ],
+      localPlayer: eogPlayer('First', 1, 100, 33000, 21000, { isLocalPlayer: true }),
+    }
+
+    const players = await collectPosterPlayers(payload, null, [])
+
+    expect(players.map((player) => [player.summonerName, player.stats.damageDealtToChampions, player.stats.damageTaken])).toEqual([
+      ['First', 33000, 21000],
+      ['Second', 27000, 19000],
+      ['Third', 18000, 26000],
+    ])
+    expect(players[0].isSelf).toBe(true)
+  })
+})

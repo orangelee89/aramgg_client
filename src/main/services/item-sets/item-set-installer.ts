@@ -62,8 +62,9 @@ const MAX_ITEM_SETS_PER_CHAMPION = 4
 const MAX_STARTING_SEQUENCES = 2
 const MAX_CORE_SEQUENCES = 4
 const MAX_FULL_BUILD_SEQUENCES = 3
-const MAX_LATER_ITEMS = 12
-const MAX_SITUATIONAL_ITEMS = 12
+// 商店推荐页一行放不下太多图标，每块最多 5 件。
+const MAX_LATER_ITEMS = 5
+const MAX_SITUATIONAL_ITEMS = 5
 const ITEM_SET_SORT_RANK = 100
 
 function getChampionId(champion: ChampionLike): number {
@@ -383,7 +384,8 @@ export function createItemSets(champion: ChampionLike, championName: ChampionLik
     const itemSet = createItemSet(champion, championName, build, index)
     if (itemSet) {
       // 标签直接用出装路线名（与英雄详情页一致，如 "Tank"、"AD / Bruiser"）；重名时加序号。
-      const duplicates = itemSets.filter((existing) => existing.title === title || existing.title.startsWith(`${title} `)).length
+      const numberedTitle = new RegExp(`^${title.replace(/[.*+?^${}()|[\]\/]/g, '\$&')} \d+$`)
+      const duplicates = itemSets.filter((existing) => existing.title === title || numberedTitle.test(existing.title)).length
       itemSet.title = duplicates === 0 ? title : `${title} ${duplicates + 1}`
       itemSets.push(itemSet)
     } else {

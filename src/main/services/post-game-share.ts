@@ -575,7 +575,14 @@ async function resolveChampionIdFromName(championName: string): Promise<number |
 }
 
 function looksLikePlayerRecord(record: AnyRecord): boolean {
-  if (Array.isArray(record.allPlayers) || Array.isArray(record.teams) || Array.isArray(record.participants)) {
+  // 容器对象（整局数据、队伍）自己也带 stats/ID，会把第一名玩家的身份和一份全 0 的队伍统计
+  // 混成一个假"玩家"；只要下面挂着玩家数组就不是玩家。
+  if (
+    Array.isArray(record.allPlayers) ||
+    Array.isArray(record.teams) ||
+    Array.isArray(record.participants) ||
+    Array.isArray(record.players)
+  ) {
     return false
   }
 
@@ -812,8 +819,7 @@ export async function collectPosterPlayers(
     return []
   }
 
-  const seenKeys = new Set<string>()
-  const players: SnapshotPlayer[] = []
+  const playersByKey = new Map<string, SnapshotPlayer>()
 
   for (const candidate of candidates) {
     const summonerName = extractSummonerName(candidate)
@@ -822,29 +828,39 @@ export async function collectPosterPlayers(
       (championName ? await resolveChampionIdFromName(championName) : null)
     const team = readTeam(candidate)
     const key = buildPlayerKey(summonerName, team, championId)
-    if (seenKeys.has(key)) {
-      continue
-    }
-
     const candidateIdentities = collectIdentityCandidates(candidate)
     const isSelf = candidate === selectedPlayer ||
       readBooleanByKeys(candidate, localPlayerKeys) === true ||
       candidateIdentities.some((identity) => identityCandidates.includes(identity))
+    const stats = extractStats(candidate)
 
-    seenKeys.add(key)
-    players.push({
+    // 同一个人可能出现多次（队伍列表里一条、localPlayer 一条），合并而不是丢弃后者：
+    // 自己的标记取并集，缺的数据用后来的补上。
+    const existing = playersByKey.get(key)
+    if (existing) {
+      existing.isSelf = existing.isSelf || isSelf
+      existing.stats = mergeStats(existing.stats, stats)
+      if (!existing.team && team) {
+        existing.team = team
+      }
+      continue
+    }
+
+    if (playersByKey.size >= MAX_POSTER_PLAYERS) {
+      continue
+    }
+
+    playersByKey.set(key, {
       key,
       summonerName,
       team,
       isSelf,
       champion: await createChampion(championId, championName),
-      stats: extractStats(candidate),
+      stats,
     })
-
-    if (players.length >= MAX_POSTER_PLAYERS) {
-      break
-    }
   }
+
+  const players = [...playersByKey.values()]
 
   // 只有一个人（例如只带 activePlayer 的心跳数据）没有对比意义。
   if (players.length < 2) {
