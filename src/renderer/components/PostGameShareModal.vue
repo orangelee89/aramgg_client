@@ -168,6 +168,7 @@ const chartPlayers = computed(() => {
     summonerName: poster.summonerName || selfPlayer.value?.summonerName || '',
     champion: poster.champion || selfPlayer.value?.champion || null,
     stats: poster.stats || selfPlayer.value?.stats || {},
+    rating: poster.rating || selfPlayer.value?.rating || null,
     isSelf: true,
   }
   return [self, ...selected]
@@ -543,12 +544,18 @@ function drawDamageCompare(ctx, top, players, images) {
     }
 
     drawCircularImage(ctx, images[index], x + 48, centerY, 22, displayName)
+    const nameMaxWidth = player.rating ? 96 : 150
     drawText(ctx, displayName, x + 82, centerY - 4, {
       size: 20,
       weight: 800,
       color: nameColor,
-      maxWidth: 150,
+      maxWidth: nameMaxWidth,
     })
+    if (player.rating) {
+      ctx.font = `800 20px ${FONT_FAMILY}`
+      const nameWidth = Math.min(ctx.measureText(displayName).width, nameMaxWidth)
+      drawHorseBadge(ctx, player.rating, x + 82 + nameWidth + 8, centerY - 10)
+    }
     drawText(ctx, summonerName, x + 82, centerY + 18, {
       size: 15,
       weight: 600,
@@ -560,6 +567,107 @@ function drawDamageCompare(ctx, top, players, images) {
     const taken = safeNumber(player.stats?.damageTaken)
     drawDamageBar(ctx, barX, centerY - 20, barWidth, 16, (dealt || 0) / maxValue, dealtColor, formatLargeNumber(dealt))
     drawDamageBar(ctx, barX, centerY + 4, barWidth, 16, (taken || 0) / maxValue, takenColor, formatLargeNumber(taken))
+  })
+}
+
+function getHorseTierLabel(rating) {
+  const tier = rating?.tier
+  if (tier === 'top') return t('postGame.horseTop')
+  if (tier === 'bottom') return t('postGame.horseBottom')
+  if (tier === 'mid') return t('postGame.horseMid')
+  return ''
+}
+
+function getHorseTierColor(rating) {
+  const tier = rating?.tier
+  if (tier === 'top') return '#f2c94c'
+  if (tier === 'bottom') return '#8d97a5'
+  return '#b9c7d6'
+}
+
+/**
+ * 鎏金字：金色渐变填充 + 暖色外发光 + 顶部高光描边，用于"本局上等马"。
+ */
+function drawGoldenText(ctx, text, x, y, options = {}) {
+  const { size = 30, weight = 900, align = 'right', baseline = 'alphabetic', maxWidth = null } = options
+  ctx.save()
+  ctx.font = `${weight} ${size}px ${FONT_FAMILY}`
+  ctx.textAlign = align
+  ctx.textBaseline = baseline
+
+  let output = String(text || '')
+  if (maxWidth && ctx.measureText(output).width > maxWidth) {
+    while (output.length > 1 && ctx.measureText(`${output}...`).width > maxWidth) {
+      output = output.slice(0, -1)
+    }
+    output = `${output}...`
+  }
+  const textWidth = ctx.measureText(output).width
+  const left = align === 'right' ? x - textWidth : align === 'center' ? x - textWidth / 2 : x
+
+  ctx.shadowColor = 'rgba(255, 196, 80, 0.75)'
+  ctx.shadowBlur = 22
+  ctx.fillStyle = 'rgba(255, 196, 80, 0.35)'
+  ctx.fillText(output, x, y)
+
+  ctx.shadowBlur = 0
+  ctx.shadowColor = 'transparent'
+  const gradient = ctx.createLinearGradient(left, y - size, left + textWidth, y + size * 0.3)
+  gradient.addColorStop(0, '#fff3c4')
+  gradient.addColorStop(0.28, '#f7d774')
+  gradient.addColorStop(0.5, '#fff9df')
+  gradient.addColorStop(0.72, '#e0a53a')
+  gradient.addColorStop(1, '#b8781c')
+  ctx.fillStyle = gradient
+  ctx.fillText(output, x, y)
+
+  ctx.lineWidth = 1
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)'
+  ctx.strokeText(output, x, y)
+  ctx.restore()
+}
+
+/**
+ * 战绩栏右侧的称号：上等马用鎏金字，其余两档用普通字色。
+ */
+function drawHorseTitle(ctx, rating, right, baseline) {
+  const label = getHorseTierLabel(rating)
+  if (!label) return
+
+  if (rating.tier === 'top') {
+    drawGoldenText(ctx, t('postGame.horseTopTitle'), right, baseline, { size: 40, align: 'right' })
+  } else {
+    drawText(ctx, label, right, baseline, {
+      size: 34,
+      weight: 900,
+      color: getHorseTierColor(rating),
+      align: 'right',
+    })
+  }
+
+  drawText(ctx, t('postGame.horseScore', { score: rating.score.toFixed(1), rank: rating.rank, size: rating.teamSize }), right, baseline + 30, {
+    size: 17,
+    weight: 700,
+    color: 'rgba(214, 226, 238, 0.66)',
+    align: 'right',
+  })
+}
+
+function drawHorseBadge(ctx, rating, x, centerY) {
+  const label = getHorseTierLabel(rating)
+  if (!label) return
+
+  const color = getHorseTierColor(rating)
+  ctx.font = `800 13px ${FONT_FAMILY}`
+  const width = ctx.measureText(label).width + 16
+  fillRoundedRect(ctx, x, centerY - 11, width, 22, 11, rating.tier === 'top' ? 'rgba(242, 201, 76, 0.18)' : 'rgba(255, 255, 255, 0.07)')
+  strokeRoundedRect(ctx, x, centerY - 11, width, 22, 11, rating.tier === 'top' ? 'rgba(242, 201, 76, 0.6)' : 'rgba(255, 255, 255, 0.14)')
+  drawText(ctx, label, x + width / 2, centerY + 1, {
+    size: 13,
+    weight: 800,
+    color,
+    align: 'center',
+    baseline: 'middle',
   })
 }
 
@@ -776,8 +884,11 @@ async function drawPoster() {
     size: 58,
     weight: 900,
     color: '#ffffff',
-    maxWidth: 582,
+    maxWidth: poster.rating ? 360 : 582,
   })
+  if (poster.rating) {
+    drawHorseTitle(ctx, poster.rating, 668, 392)
+  }
   const cellWidth = 306
   drawStatCell(ctx, 52, 494, cellWidth, 118, t('postGame.damage'), formatLargeNumber(stats.damageDealtToChampions), '#9be8dc')
   drawStatCell(ctx, 392, 494, cellWidth, 118, t('postGame.damageTaken'), formatLargeNumber(stats.damageTaken), '#ffb06e')

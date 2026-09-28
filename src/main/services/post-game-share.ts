@@ -8,6 +8,7 @@ import {
   loadChampionName,
   loadChampionRoster,
 } from '../data-loader.ts'
+import { computeHorseRatings, type HorseRating } from './post-game-rating.ts'
 
 type AnyRecord = Record<string, any>
 
@@ -21,6 +22,10 @@ export type PostGameShareStatBlock = {
   goldEarned: number | null
   creepScore: number | null
   killParticipation: number | null
+  damageSelfMitigated: number | null
+  timeCCingOthers: number | null
+  healsOnTeammates: number | null
+  shieldsOnTeammates: number | null
 }
 
 export type PostGameShareChampion = {
@@ -53,6 +58,7 @@ export type PostGameSharePlayer = {
   isSelf: boolean
   champion: PostGameShareChampion
   stats: PostGameShareStatBlock
+  rating: HorseRating | null
 }
 
 export type PostGameSharePosterData = {
@@ -67,6 +73,7 @@ export type PostGameSharePosterData = {
   stats: PostGameShareStatBlock
   augments: PostGameShareAugment[]
   players: PostGameSharePlayer[]
+  rating: HorseRating | null
   sources: string[]
   updatedAt: number
 }
@@ -81,7 +88,7 @@ type SnapshotChampion = {
 
 type SnapshotAugment = Omit<PostGameShareAugment, 'imageDataUrl'>
 
-type SnapshotPlayer = Omit<PostGameSharePlayer, 'champion'> & {
+type SnapshotPlayer = Omit<PostGameSharePlayer, 'champion' | 'rating'> & {
   champion: SnapshotChampion
 }
 
@@ -122,6 +129,11 @@ const statKeySets = {
   goldEarned: new Set(['goldearned', 'gold']),
   creepScore: new Set(['creepscore', 'minionskilled', 'totalminionskilled']),
   killParticipation: new Set(['killparticipation', 'teamkillparticipation']),
+  // 赛后 eog-stats-block 用大写下划线键（归一化后无下划线），战绩接口用驼峰；两套都认。
+  damageSelfMitigated: new Set(['totaldamageselfmitigated', 'damageselfmitigated']),
+  timeCCingOthers: new Set(['timeccingothers', 'totaltimeccingothers', 'timeccothers', 'totaltimeccdealt']),
+  healsOnTeammates: new Set(['totalhealonteammates', 'totalhealsonteammates', 'healsonteammates', 'healonteammates']),
+  shieldsOnTeammates: new Set(['totaldamageshieldedonteammates', 'damageshieldedonteammates', 'shieldsonteammates']),
 }
 
 const championIdKeys = new Set([
@@ -173,6 +185,10 @@ function createEmptyStats(): PostGameShareStatBlock {
     goldEarned: null,
     creepScore: null,
     killParticipation: null,
+    damageSelfMitigated: null,
+    timeCCingOthers: null,
+    healsOnTeammates: null,
+    shieldsOnTeammates: null,
   }
 }
 
@@ -440,6 +456,10 @@ function extractStats(value: unknown): PostGameShareStatBlock {
   stats.goldEarned = readNumberByKeys(value, statKeySets.goldEarned)
   stats.creepScore = readNumberByKeys(value, statKeySets.creepScore)
   stats.killParticipation = readNumberByKeys(value, statKeySets.killParticipation)
+  stats.damageSelfMitigated = readNumberByKeys(value, statKeySets.damageSelfMitigated)
+  stats.timeCCingOthers = readNumberByKeys(value, statKeySets.timeCCingOthers)
+  stats.healsOnTeammates = readNumberByKeys(value, statKeySets.healsOnTeammates)
+  stats.shieldsOnTeammates = readNumberByKeys(value, statKeySets.shieldsOnTeammates)
 
   if (stats.kills != null && stats.deaths != null && stats.assists != null) {
     stats.kda = stats.deaths === 0
@@ -883,6 +903,10 @@ function mergeStats(existing: PostGameShareStatBlock, incoming?: PostGameShareSt
     goldEarned: incoming.goldEarned ?? existing.goldEarned,
     creepScore: incoming.creepScore ?? existing.creepScore,
     killParticipation: incoming.killParticipation ?? existing.killParticipation,
+    damageSelfMitigated: incoming.damageSelfMitigated ?? existing.damageSelfMitigated,
+    timeCCingOthers: incoming.timeCCingOthers ?? existing.timeCCingOthers,
+    healsOnTeammates: incoming.healsOnTeammates ?? existing.healsOnTeammates,
+    shieldsOnTeammates: incoming.shieldsOnTeammates ?? existing.shieldsOnTeammates,
   }
 }
 
@@ -1215,6 +1239,10 @@ async function buildPosterData(reason: string, hydrateImages: boolean): Promise<
     updatedAt: Date.now(),
   }
 
+  const ratings = computeHorseRatings(currentSnapshot.players)
+  const selfSnapshotPlayer = currentSnapshot.players.find((player) => player.isSelf) || null
+  const selfRating = selfSnapshotPlayer ? ratings.get(selfSnapshotPlayer.key) || null : null
+
   const data: PostGameSharePosterData = {
     status: getPosterStatus(currentSnapshot),
     reason,
@@ -1238,7 +1266,9 @@ async function buildPosterData(reason: string, hydrateImages: boolean): Promise<
         ...player.champion,
         imageDataUrl: null,
       },
+      rating: ratings.get(player.key) || null,
     })),
+    rating: selfRating,
     sources: currentSnapshot.sources,
     updatedAt: currentSnapshot.updatedAt,
   }
@@ -1300,6 +1330,33 @@ export async function capturePostGameShareSnapshot(
   return currentSnapshot
 }
 
+/**
+ * 记录赛后数据块里第一名玩家的统计键，用来确认控制时长、治疗/护盾这些字段在当前客户端版本的真实键名。
+ */
+function logEndOfGameStatKeys(endpoint: string, payload: unknown, update: SnapshotUpdate): void {
+  try {
+    const candidate = collectPlayerCandidates(payload)[0]
+    const statsRecord = candidate && isRecord(candidate.stats) ? candidate.stats : candidate
+    const keys = statsRecord ? Object.keys(statsRecord).slice(0, 120) : []
+    const players = update.players || []
+    logger.info('[post-game-share] end-of-game stat keys', {
+      endpoint,
+      playerCount: players.length,
+      keyCount: keys.length,
+      keys,
+      ratingFields: players.slice(0, 2).map((player) => ({
+        key: player.key,
+        damageSelfMitigated: player.stats.damageSelfMitigated,
+        timeCCingOthers: player.stats.timeCCingOthers,
+        healsOnTeammates: player.stats.healsOnTeammates,
+        shieldsOnTeammates: player.stats.shieldsOnTeammates,
+      })),
+    })
+  } catch (error) {
+    logger.debug('[post-game-share] failed to log end-of-game stat keys:', (error as Error).message)
+  }
+}
+
 async function captureEndOfGameStats(lcuService: LCUService, reason: string): Promise<void> {
   const endpoints = [
     '/lol-end-of-game/v1/eog-stats-block',
@@ -1317,6 +1374,7 @@ async function captureEndOfGameStats(lcuService: LCUService, reason: string): Pr
       source: `eog:${endpoint}:${reason}`,
     })
     mergeSnapshot(update)
+    logEndOfGameStatKeys(endpoint, result.data, update)
 
     if (hasAnyStats(update.stats || createEmptyStats())) {
       return
@@ -1467,6 +1525,10 @@ export async function createMockPostGameSharePosterData(): Promise<{
       goldEarned,
       creepScore: 58 + Math.floor(Math.random() * 38),
       killParticipation: 0.72 + Math.random() * 0.22,
+      damageSelfMitigated: 20000 + Math.floor(Math.random() * 30000),
+      timeCCingOthers: 20 + Math.floor(Math.random() * 60),
+      healsOnTeammates: Math.floor(Math.random() * 8000),
+      shieldsOnTeammates: Math.floor(Math.random() * 6000),
     }
     const mockPlayers: SnapshotPlayer[] = [{
       key: 'name:aramgg玩家',
@@ -1501,6 +1563,10 @@ export async function createMockPostGameSharePosterData(): Promise<{
           goldEarned: 11000 + Math.floor(Math.random() * 7000),
           creepScore: 30 + Math.floor(Math.random() * 60),
           killParticipation: 0.4 + Math.random() * 0.5,
+          damageSelfMitigated: 8000 + Math.floor(Math.random() * 40000),
+          timeCCingOthers: 5 + Math.floor(Math.random() * 90),
+          healsOnTeammates: Math.random() < 0.4 ? Math.floor(Math.random() * 15000) : 0,
+          shieldsOnTeammates: Math.random() < 0.4 ? Math.floor(Math.random() * 10000) : 0,
         },
       })
     }
