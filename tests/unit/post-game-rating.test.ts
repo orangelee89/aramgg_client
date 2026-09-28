@@ -1,57 +1,48 @@
 import { describe, expect, it } from 'vitest'
-import { computeHorseRatings, HORSE_RATING_WEIGHTS } from '../../src/main/services/post-game-rating.ts'
+import { computeHorseRatings } from '../../src/main/services/post-game-rating.ts'
 
 const player = (key: string, team: string, stats: Record<string, number>) => ({ key, team, stats })
 
-describe('post-game horse ratings', () => {
-  it('normalizes each metric to the match maximum and weights them', () => {
+describe('post-game horse honors', () => {
+  it('hands each honor to the match leader of its stat', () => {
     const ratings = computeHorseRatings([
-      player('carry', 'ORDER', { damageDealtToChampions: 60000, damageTaken: 20000, timeCCingOthers: 10, healsOnTeammates: 0 }),
-      player('tank', 'ORDER', { damageDealtToChampions: 20000, damageTaken: 60000, timeCCingOthers: 40, healsOnTeammates: 0 }),
-      player('support', 'ORDER', { damageDealtToChampions: 15000, damageTaken: 25000, timeCCingOthers: 20, healsOnTeammates: 12000, shieldsOnTeammates: 8000 }),
+      player('carry', 'ORDER', { kills: 8, deaths: 3, assists: 10, damageDealtToChampions: 60000, damageTaken: 20000 }),
+      player('tank', 'ORDER', { kills: 2, deaths: 6, assists: 20, damageDealtToChampions: 15000, damageTaken: 70000 }),
+      player('assassin', 'CHAOS', { kills: 14, deaths: 9, assists: 4, damageDealtToChampions: 40000, damageTaken: 25000 }),
+      player('support', 'CHAOS', { kills: 1, deaths: 5, assists: 30, damageDealtToChampions: 9000, damageTaken: 18000 }),
+      player('filler', 'CHAOS', { kills: 5, deaths: 4, assists: 12, damageDealtToChampions: 20000, damageTaken: 22000 }),
     ])
 
-    const carry = ratings.get('carry')!
-    expect(carry.breakdown).toEqual({ damage: 1, tank: 20000 / 60000, control: 0.25, support: 0 })
-    expect(carry.score).toBeCloseTo(
-      (HORSE_RATING_WEIGHTS.damage + HORSE_RATING_WEIGHTS.tank / 3 + HORSE_RATING_WEIGHTS.control * 0.25) * 10,
-      2
-    )
-    expect(ratings.get('support')!.breakdown.support).toBe(1)
+    expect(ratings.get('carry')?.honors).toEqual(['top'])
+    expect(ratings.get('carry')?.honorValues).toEqual({ top: 60000 })
+    expect(ratings.get('tank')?.honors).toEqual(['tank'])
+    expect(ratings.get('assassin')?.honors).toEqual(['kills', 'deaths'])
+    expect(ratings.get('support')?.honors).toEqual(['assists'])
+    expect(ratings.get('filler')?.honors).toEqual([])
+    expect(ratings.get('filler')?.playerCount).toBe(5)
   })
 
-  it('assigns exactly one top and one bottom horse per team', () => {
+  it('stacks honors in name order for a player who leads several stats', () => {
     const ratings = computeHorseRatings([
-      player('a1', 'ORDER', { damageDealtToChampions: 50000, damageTaken: 30000 }),
-      player('a2', 'ORDER', { damageDealtToChampions: 30000, damageTaken: 30000 }),
-      player('a3', 'ORDER', { damageDealtToChampions: 10000, damageTaken: 10000 }),
-      player('b1', 'CHAOS', { damageDealtToChampions: 45000, damageTaken: 20000 }),
-      player('b2', 'CHAOS', { damageDealtToChampions: 5000, damageTaken: 5000 }),
+      player('monster', 'ORDER', { kills: 20, deaths: 10, assists: 25, damageDealtToChampions: 80000, damageTaken: 60000 }),
+      player('quiet', 'CHAOS', { kills: 2, deaths: 2, assists: 3, damageDealtToChampions: 10000, damageTaken: 10000 }),
     ])
 
-    const tiers = (team: string) => [...ratings.values()].filter((rating) => rating.team === team).map((rating) => rating.tier).sort()
-    expect(tiers('ORDER')).toEqual(['bottom', 'mid', 'top'])
-    expect(tiers('CHAOS')).toEqual(['bottom', 'top'])
-    expect(ratings.get('a1')!.rank).toBe(1)
-    expect(ratings.get('a3')!.rank).toBe(3)
-    expect(ratings.get('a3')!.teamSize).toBe(3)
+    expect(ratings.get('monster')?.honors).toEqual(['top', 'tank', 'kills', 'assists', 'deaths'])
+    expect(ratings.get('quiet')?.honors).toEqual([])
   })
 
-  it('counts self-mitigated damage at half weight inside the tank metric', () => {
+  it('shares an honor between players tied at the top value', () => {
     const ratings = computeHorseRatings([
-      player('mitigator', 'ORDER', { damageDealtToChampions: 1000, damageTaken: 10000, damageSelfMitigated: 20000 }),
-      player('plain', 'ORDER', { damageDealtToChampions: 1000, damageTaken: 20000 }),
+      player('a', 'ORDER', { kills: 9, deaths: 2, assists: 5, damageDealtToChampions: 30000, damageTaken: 30000 }),
+      player('b', 'CHAOS', { kills: 9, deaths: 4, assists: 4, damageDealtToChampions: 20000, damageTaken: 20000 }),
     ])
 
-    expect(ratings.get('mitigator')!.breakdown.tank).toBe(1)
-    expect(ratings.get('plain')!.breakdown.tank).toBe(1)
+    expect(ratings.get('a')?.honors).toEqual(['top', 'tank', 'kills', 'assists'])
+    expect(ratings.get('b')?.honors).toEqual(['kills', 'deaths'])
   })
 
-  it('returns nothing without at least two players carrying damage data', () => {
-    expect(computeHorseRatings([player('solo', 'ORDER', { damageDealtToChampions: 100 })]).size).toBe(0)
-    expect(computeHorseRatings([
-      player('x', 'ORDER', { kills: 3 } as never),
-      player('y', 'ORDER', { kills: 2 } as never),
-    ]).size).toBe(0)
+  it('returns nothing without at least two players carrying stats', () => {
+    expect(computeHorseRatings([player('solo', 'ORDER', { kills: 3 })]).size).toBe(0)
   })
 })

@@ -124,6 +124,8 @@ let toastTimer = null
 // 伤害对比：勾选本局其他玩家后，海报在经济/KDA 下方插入输出/承伤柱状图；
 // "固定"的玩家名存到 postGameShare.comparePlayers，以后同一个人在局里就自动勾上。
 const COMPARE_STORE_KEY = 'postGameShare.comparePlayers'
+const TITLE_PANEL_HEIGHT = 162
+const TITLE_PANEL_GAP = 22
 const CHART_TOP = 774
 const CHART_HEADER_HEIGHT = 54
 const CHART_ROW_HEIGHT = 66
@@ -178,7 +180,9 @@ const chartHeight = computed(() =>
     ? CHART_HEADER_HEIGHT + chartPlayers.value.length * CHART_ROW_HEIGHT + CHART_BOTTOM_PADDING
     : 0
 )
-const layoutShift = computed(() => chartHeight.value > 0 ? chartHeight.value + CHART_SECTION_GAP : 0)
+const titleShift = computed(() => props.poster?.rating ? TITLE_PANEL_HEIGHT + TITLE_PANEL_GAP : 0)
+const chartShift = computed(() => chartHeight.value > 0 ? chartHeight.value + CHART_SECTION_GAP : 0)
+const layoutShift = computed(() => titleShift.value + chartShift.value)
 const posterHeight = computed(() => POSTER_HEIGHT + layoutShift.value)
 
 function isSelectedPlayer(player) {
@@ -570,19 +574,48 @@ function drawDamageCompare(ctx, top, players, images) {
   })
 }
 
-function getHorseTierLabel(rating) {
-  const tier = rating?.tier
-  if (tier === 'top') return t('postGame.horseTop')
-  if (tier === 'bottom') return t('postGame.horseBottom')
-  if (tier === 'mid') return t('postGame.horseMid')
-  return ''
+const HORSE_HONOR_PART_KEYS = {
+  top: 'postGame.horsePartTop',
+  tank: 'postGame.horsePartTank',
+  kills: 'postGame.horsePartKills',
+  assists: 'postGame.horsePartAssists',
+  deaths: 'postGame.horsePartDeaths',
 }
 
-function getHorseTierColor(rating) {
-  const tier = rating?.tier
-  if (tier === 'top') return '#f2c94c'
-  if (tier === 'bottom') return '#8d97a5'
-  return '#b9c7d6'
+const HORSE_HONOR_REASON_KEYS = {
+  top: 'postGame.horseReasonTop',
+  tank: 'postGame.horseReasonTank',
+  kills: 'postGame.horseReasonKills',
+  assists: 'postGame.horseReasonAssists',
+  deaths: 'postGame.horseReasonDeaths',
+}
+
+function getHorseHonors(rating) {
+  return Array.isArray(rating?.honors) ? rating.honors.filter((honor) => HORSE_HONOR_PART_KEYS[honor]) : []
+}
+
+/**
+ * 称号名：把拿到的殊荣按顺序拼起来再加"马"，如"上等死马"；没有殊荣是"普通马"。
+ */
+function getHorseTitleLabel(rating) {
+  if (!rating) return ''
+  const honors = getHorseHonors(rating)
+  const parts = honors.length
+    ? honors.map((honor) => t(HORSE_HONOR_PART_KEYS[honor]))
+    : [t('postGame.horsePartNormal')]
+  return t('postGame.horseName', { parts: parts.join(t('postGame.horsePartJoiner')) })
+}
+
+function getHorseTitleReason(rating) {
+  const honors = getHorseHonors(rating)
+  if (!honors.length) return t('postGame.horseReasonNormal')
+  return honors.map((honor) => {
+    const value = rating.honorValues?.[honor]
+    const formatted = honor === 'top' || honor === 'tank'
+      ? formatLargeNumber(value)
+      : String(Math.round(Number(value) || 0))
+    return t(HORSE_HONOR_REASON_KEYS[honor], { value: formatted })
+  }).join(' · ')
 }
 
 /**
@@ -628,47 +661,41 @@ function drawGoldenText(ctx, text, x, y, options = {}) {
 }
 
 /**
- * 战绩栏右侧的称号：上等马用鎏金字，其余两档用普通字色。
+ * "本局称号"模块：放在战绩栏上方，标题小字 + 鎏金大字称号，下方一行获奖原因。
  */
-function drawHorseTitle(ctx, rating, right, baseline) {
-  const label = getHorseTierLabel(rating)
+function drawHorseTitlePanel(ctx, rating, top) {
+  const x = 52
+  const width = 646
+  const height = TITLE_PANEL_HEIGHT
+  const label = getHorseTitleLabel(rating)
   if (!label) return
 
-  if (rating.tier === 'top') {
-    drawGoldenText(ctx, t('postGame.horseTopTitle'), right, baseline, { size: 40, align: 'right' })
-  } else {
-    drawText(ctx, label, right, baseline, {
-      size: 34,
-      weight: 900,
-      color: getHorseTierColor(rating),
-      align: 'right',
-    })
-  }
-
-  drawText(ctx, t('postGame.horseScore', { score: rating.score.toFixed(1), rank: rating.rank, size: rating.teamSize }), right, baseline + 30, {
-    size: 17,
+  fillRoundedRect(ctx, x, top, width, height, 24, 'rgba(242, 201, 76, 0.07)')
+  strokeRoundedRect(ctx, x, top, width, height, 24, 'rgba(242, 201, 76, 0.28)')
+  drawText(ctx, t('postGame.horseSection'), x + 32, top + 40, {
+    size: 22,
+    weight: 800,
+    color: '#e7bd68',
+  })
+  const labelSize = label.length > 6 ? 40 : 50
+  drawGoldenText(ctx, label, x + 32, top + 98, { size: labelSize, align: 'left', maxWidth: width - 64 })
+  drawText(ctx, getHorseTitleReason(rating), x + 32, top + 136, {
+    size: 18,
     weight: 700,
-    color: 'rgba(214, 226, 238, 0.66)',
-    align: 'right',
+    color: 'rgba(246, 236, 210, 0.78)',
+    maxWidth: width - 64,
   })
 }
 
 function drawHorseBadge(ctx, rating, x, centerY) {
-  const label = getHorseTierLabel(rating)
+  const label = getHorseTitleLabel(rating)
   if (!label) return
 
-  const color = getHorseTierColor(rating)
   ctx.font = `800 13px ${FONT_FAMILY}`
   const width = ctx.measureText(label).width + 16
-  fillRoundedRect(ctx, x, centerY - 11, width, 22, 11, rating.tier === 'top' ? 'rgba(242, 201, 76, 0.18)' : 'rgba(255, 255, 255, 0.07)')
-  strokeRoundedRect(ctx, x, centerY - 11, width, 22, 11, rating.tier === 'top' ? 'rgba(242, 201, 76, 0.6)' : 'rgba(255, 255, 255, 0.14)')
-  drawText(ctx, label, x + width / 2, centerY + 1, {
-    size: 13,
-    weight: 800,
-    color,
-    align: 'center',
-    baseline: 'middle',
-  })
+  fillRoundedRect(ctx, x, centerY - 11, width, 22, 11, 'rgba(242, 201, 76, 0.14)')
+  strokeRoundedRect(ctx, x, centerY - 11, width, 22, 11, 'rgba(242, 201, 76, 0.5)')
+  drawGoldenText(ctx, label, x + width / 2, centerY + 1, { size: 13, weight: 800, align: 'center', baseline: 'middle' })
 }
 
 function drawStatCell(ctx, x, y, width, height, label, value, accent) {
@@ -808,6 +835,7 @@ async function drawPoster() {
   const [kills, deaths, assists] = getKdaParts()
   const posterAugments = getPosterAugments(poster)
   const comparePlayerList = chartPlayers.value
+  const titleOffset = titleShift.value
   const shift = layoutShift.value
   const canvasHeight = POSTER_HEIGHT + shift
   const championImagePromise = loadImage(poster.champion?.imageDataUrl)
@@ -873,30 +901,32 @@ async function drawPoster() {
     align: 'right',
   })
 
-  fillRoundedRect(ctx, 52, 300, 646, 156, 24, 'rgba(255, 255, 255, 0.07)')
-  strokeRoundedRect(ctx, 52, 300, 646, 156, 24, 'rgba(255, 255, 255, 0.11)')
-  drawText(ctx, t('postGame.stats'), 84, 346, {
+  if (poster.rating) {
+    drawHorseTitlePanel(ctx, poster.rating, 300)
+  }
+
+  const statsTop = 300 + titleOffset
+  fillRoundedRect(ctx, 52, statsTop, 646, 156, 24, 'rgba(255, 255, 255, 0.07)')
+  strokeRoundedRect(ctx, 52, statsTop, 646, 156, 24, 'rgba(255, 255, 255, 0.11)')
+  drawText(ctx, t('postGame.stats'), 84, statsTop + 46, {
     size: 22,
     weight: 800,
     color: '#9be8dc',
   })
-  drawText(ctx, `${kills} / ${deaths} / ${assists}`, 84, 414, {
+  drawText(ctx, `${kills} / ${deaths} / ${assists}`, 84, statsTop + 114, {
     size: 58,
     weight: 900,
     color: '#ffffff',
-    maxWidth: poster.rating ? 360 : 582,
+    maxWidth: 582,
   })
-  if (poster.rating) {
-    drawHorseTitle(ctx, poster.rating, 668, 392)
-  }
   const cellWidth = 306
-  drawStatCell(ctx, 52, 494, cellWidth, 118, t('postGame.damage'), formatLargeNumber(stats.damageDealtToChampions), '#9be8dc')
-  drawStatCell(ctx, 392, 494, cellWidth, 118, t('postGame.damageTaken'), formatLargeNumber(stats.damageTaken), '#ffb06e')
-  drawStatCell(ctx, 52, 636, cellWidth, 118, t('postGame.gold'), formatLargeNumber(stats.goldEarned), '#e7bd68')
-  drawStatCell(ctx, 392, 636, cellWidth, 118, 'KDA', formatKdaValue(stats.kda), '#caa8ff')
+  drawStatCell(ctx, 52, statsTop + 194, cellWidth, 118, t('postGame.damage'), formatLargeNumber(stats.damageDealtToChampions), '#9be8dc')
+  drawStatCell(ctx, 392, statsTop + 194, cellWidth, 118, t('postGame.damageTaken'), formatLargeNumber(stats.damageTaken), '#ffb06e')
+  drawStatCell(ctx, 52, statsTop + 336, cellWidth, 118, t('postGame.gold'), formatLargeNumber(stats.goldEarned), '#e7bd68')
+  drawStatCell(ctx, 392, statsTop + 336, cellWidth, 118, 'KDA', formatKdaValue(stats.kda), '#caa8ff')
 
   if (comparePlayerList.length > 1) {
-    drawDamageCompare(ctx, CHART_TOP, comparePlayerList, comparePlayerImages)
+    drawDamageCompare(ctx, CHART_TOP + titleOffset, comparePlayerList, comparePlayerImages)
   }
 
   drawText(ctx, t('postGame.augments'), 58, 820 + shift, {
