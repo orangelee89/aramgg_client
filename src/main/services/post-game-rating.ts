@@ -1,5 +1,5 @@
 /**
- * 赛后"马"称号：按单项之最在全场十人里发殊荣，一个人可以同时拿多项，
+ * 赛后"马"称号：在各自队伍内部按单项之最发殊荣（我方五人比我方，对面五人比对面），一个人可以同时拿多项，
  * 名字按固定顺序拼接：上等（输出最高）→ 陀螺（承伤最多）→ K头（人头最多）
  * → 仁慈（助攻最多）→ 死（死亡最多），最后加"马"；例如输出最高又死得最多就是"上等死马"。
  * 一项都不沾的是"普通马"。并列最高时都算。
@@ -68,27 +68,37 @@ export function computeHorseRatings(players: RatingPlayerInput[]): Map<string, H
     })
   })
 
-  for (const { honor, stat } of HORSE_HONOR_ORDER) {
-    let best = 0
-    valid.forEach((player) => {
-      best = Math.max(best, toNumber(player.stats?.[stat]) ?? 0)
-    })
-    if (best <= 0) {
-      continue
-    }
+  const teams = new Map<string, RatingPlayerInput[]>()
+  valid.forEach((player) => {
+    const team = String(player.team || '')
+    const bucket = teams.get(team) || []
+    bucket.push(player)
+    teams.set(team, bucket)
+  })
 
-    valid.forEach((player) => {
-      if ((toNumber(player.stats?.[stat]) ?? 0) !== best) {
-        return
+  teams.forEach((members) => {
+    for (const { honor, stat } of HORSE_HONOR_ORDER) {
+      let best = 0
+      members.forEach((player) => {
+        best = Math.max(best, toNumber(player.stats?.[stat]) ?? 0)
+      })
+      if (best <= 0) {
+        continue
       }
-      const rating = ratings.get(player.key)
-      if (!rating) {
-        return
-      }
-      rating.honors.push(honor)
-      rating.honorValues[honor] = best
-    })
-  }
+
+      members.forEach((player) => {
+        if ((toNumber(player.stats?.[stat]) ?? 0) !== best) {
+          return
+        }
+        const rating = ratings.get(player.key)
+        if (!rating) {
+          return
+        }
+        rating.honors.push(honor)
+        rating.honorValues[honor] = best
+      })
+    }
+  })
 
   return ratings
 }
