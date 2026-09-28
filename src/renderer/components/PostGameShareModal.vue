@@ -128,7 +128,7 @@ const TITLE_PANEL_HEIGHT = 162
 const TITLE_PANEL_GAP = 22
 const CHART_TOP = 774
 const CHART_HEADER_HEIGHT = 54
-const CHART_ROW_HEIGHT = 66
+const CHART_ROW_HEIGHT = 92
 const CHART_BOTTOM_PADDING = 18
 const CHART_SECTION_GAP = 22
 const selectedPlayerKeys = ref([])
@@ -500,8 +500,8 @@ function drawDamageCompare(ctx, top, players, images) {
   const height = CHART_HEADER_HEIGHT + players.length * CHART_ROW_HEIGHT + CHART_BOTTOM_PADDING
   const dealtColor = '#9be8dc'
   const takenColor = '#ffb06e'
-  const barX = 262
-  const barWidth = 356
+  const barX = 300
+  const barWidth = 318
   const maxValue = Math.max(
     1,
     ...players.map((player) => Math.max(
@@ -547,25 +547,25 @@ function drawDamageCompare(ctx, top, players, images) {
       ctx.stroke()
     }
 
+    // 左栏三行：英雄名 / 玩家名 / 称号徽标，宽度固定到柱子起点之前，互不重叠。
+    const labelX = x + 82
+    const labelMaxWidth = barX - labelX - 14
     drawCircularImage(ctx, images[index], x + 48, centerY, 22, displayName)
-    const nameMaxWidth = player.rating ? 96 : 150
-    drawText(ctx, displayName, x + 82, centerY - 4, {
+    drawText(ctx, displayName, labelX, centerY - 18, {
       size: 20,
       weight: 800,
       color: nameColor,
-      maxWidth: nameMaxWidth,
+      maxWidth: labelMaxWidth,
     })
-    if (player.rating) {
-      ctx.font = `800 20px ${FONT_FAMILY}`
-      const nameWidth = Math.min(ctx.measureText(displayName).width, nameMaxWidth)
-      drawHorseBadge(ctx, player.rating, x + 82 + nameWidth + 8, centerY - 10)
-    }
-    drawText(ctx, summonerName, x + 82, centerY + 18, {
+    drawText(ctx, summonerName, labelX, centerY + 2, {
       size: 15,
       weight: 600,
       color: 'rgba(214, 226, 238, 0.6)',
-      maxWidth: 150,
+      maxWidth: labelMaxWidth,
     })
+    if (player.rating) {
+      drawHorseBadge(ctx, player.rating, labelX, centerY + 22, labelMaxWidth)
+    }
 
     const dealt = safeNumber(player.stats?.damageDealtToChampions)
     const taken = safeNumber(player.stats?.damageTaken)
@@ -687,15 +687,15 @@ function drawHorseTitlePanel(ctx, rating, top) {
   })
 }
 
-function drawHorseBadge(ctx, rating, x, centerY) {
+function drawHorseBadge(ctx, rating, x, centerY, maxWidth = null) {
   const label = getHorseTitleLabel(rating)
   if (!label) return
 
   ctx.font = `800 13px ${FONT_FAMILY}`
-  const width = ctx.measureText(label).width + 16
+  const width = Math.min(ctx.measureText(label).width + 16, maxWidth || Number.POSITIVE_INFINITY)
   fillRoundedRect(ctx, x, centerY - 11, width, 22, 11, 'rgba(242, 201, 76, 0.14)')
   strokeRoundedRect(ctx, x, centerY - 11, width, 22, 11, 'rgba(242, 201, 76, 0.5)')
-  drawGoldenText(ctx, label, x + width / 2, centerY + 1, { size: 13, weight: 800, align: 'center', baseline: 'middle' })
+  drawGoldenText(ctx, label, x + width / 2, centerY + 1, { size: 13, weight: 800, align: 'center', baseline: 'middle', maxWidth: width - 12 })
 }
 
 function drawStatCell(ctx, x, y, width, height, label, value, accent) {
