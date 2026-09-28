@@ -46,6 +46,15 @@ export type PostGameShareAugment = {
   source: string
 }
 
+export type PostGameSharePlayer = {
+  key: string
+  summonerName: string
+  team: 'ORDER' | 'CHAOS' | ''
+  isSelf: boolean
+  champion: PostGameShareChampion
+  stats: PostGameShareStatBlock
+}
+
 export type PostGameSharePosterData = {
   status: 'ready' | 'partial' | 'unavailable'
   reason: string
@@ -57,6 +66,7 @@ export type PostGameSharePosterData = {
   champion: PostGameShareChampion
   stats: PostGameShareStatBlock
   augments: PostGameShareAugment[]
+  players: PostGameSharePlayer[]
   sources: string[]
   updatedAt: number
 }
@@ -71,6 +81,10 @@ type SnapshotChampion = {
 
 type SnapshotAugment = Omit<PostGameShareAugment, 'imageDataUrl'>
 
+type SnapshotPlayer = Omit<PostGameSharePlayer, 'champion'> & {
+  champion: SnapshotChampion
+}
+
 type PostGameShareSnapshot = {
   result: PostGameSharePosterData['result']
   gameMode: string
@@ -80,6 +94,7 @@ type PostGameShareSnapshot = {
   champion: SnapshotChampion
   stats: PostGameShareStatBlock
   augments: SnapshotAugment[]
+  players: SnapshotPlayer[]
   identityCandidates: string[]
   sources: string[]
   updatedAt: number
@@ -136,6 +151,8 @@ const identityKeys = new Set([
 ])
 const resultKeys = new Set(['win', 'won', 'victory', 'gamewon', 'iswinner', 'result', 'gameresult'])
 const localPlayerKeys = new Set(['islocalplayer', 'localplayer', 'islocal', 'iscurrentplayer'])
+const teamKeys = new Set(['team', 'teamid'])
+const MAX_POSTER_PLAYERS = 10
 const durationKeys = new Set(['gamelength', 'gamelengthseconds', 'gameduration', 'duration'])
 
 let liveSnapshotAt = 0
@@ -179,6 +196,7 @@ function createEmptySnapshot(reason: string): PostGameShareSnapshot {
     champion: createEmptyChampion(),
     stats: createEmptyStats(),
     augments: [],
+    players: [],
     identityCandidates: [],
     sources: reason ? [reason] : [],
     updatedAt: Date.now(),
@@ -729,6 +747,127 @@ function collectKnownAugmentIds(
   return results
 }
 
+function normalizeTeam(value: unknown): PostGameSharePlayer['team'] {
+  const text = String(value ?? '').trim().toUpperCase()
+  if (text === '100' || text === 'ORDER' || text === 'BLUE') {
+    return 'ORDER'
+  }
+  if (text === '200' || text === 'CHAOS' || text === 'RED') {
+    return 'CHAOS'
+  }
+  return ''
+}
+
+function readTeam(record: AnyRecord): PostGameSharePlayer['team'] {
+  for (const [key, value] of Object.entries(record)) {
+    if (teamKeys.has(normalizeKey(key))) {
+      const team = normalizeTeam(value)
+      if (team) {
+        return team
+      }
+    }
+  }
+  return ''
+}
+
+function buildPlayerKey(summonerName: string, team: string, championId: number | null): string {
+  const identity = normalizeIdentityText(summonerName)
+  if (identity) {
+    return `name:${identity}`
+  }
+  return `slot:${team || 'unknown'}:${championId || 'unknown'}`
+}
+
+/**
+ * 从对局数据里收集所有玩家（Live Client Data 的 allPlayers、赛后 eog-stats-block 的 teams[].players），
+ * 供海报做输出/承伤对比。自己那条用 selectedPlayer 的引用或身份候选来标记。
+ */
+export async function collectPosterPlayers(
+  payload: unknown,
+  selectedPlayer: AnyRecord | null,
+  identityCandidates: string[]
+): Promise<SnapshotPlayer[]> {
+  const candidates = collectPlayerCandidates(payload)
+  if (candidates.length < 2) {
+    return []
+  }
+
+  const seenKeys = new Set<string>()
+  const players: SnapshotPlayer[] = []
+
+  for (const candidate of candidates) {
+    const summonerName = extractSummonerName(candidate)
+    const championName = extractChampionName(candidate)
+    const championId = extractChampionId(candidate) ||
+      (championName ? await resolveChampionIdFromName(championName) : null)
+    const team = readTeam(candidate)
+    const key = buildPlayerKey(summonerName, team, championId)
+    if (seenKeys.has(key)) {
+      continue
+    }
+
+    const candidateIdentities = collectIdentityCandidates(candidate)
+    const isSelf = candidate === selectedPlayer ||
+      readBooleanByKeys(candidate, localPlayerKeys) === true ||
+      candidateIdentities.some((identity) => identityCandidates.includes(identity))
+
+    seenKeys.add(key)
+    players.push({
+      key,
+      summonerName,
+      team,
+      isSelf,
+      champion: await createChampion(championId, championName),
+      stats: extractStats(candidate),
+    })
+
+    if (players.length >= MAX_POSTER_PLAYERS) {
+      break
+    }
+  }
+
+  // 只有一个人（例如只带 activePlayer 的心跳数据）没有对比意义。
+  if (players.length < 2) {
+    return []
+  }
+
+  let selfKept = false
+  for (const player of players) {
+    if (!player.isSelf) {
+      continue
+    }
+    if (selfKept) {
+      player.isSelf = false
+    }
+    selfKept = true
+  }
+
+  return players
+}
+
+function mergePlayers(existing: SnapshotPlayer[], incoming?: SnapshotPlayer[]): SnapshotPlayer[] {
+  if (!incoming || incoming.length === 0) {
+    return existing
+  }
+
+  const merged = new Map<string, SnapshotPlayer>()
+  existing.forEach((player) => merged.set(player.key, player))
+  incoming.forEach((player) => {
+    const previous = merged.get(player.key)
+    merged.set(player.key, previous
+      ? {
+        ...previous,
+        ...player,
+        isSelf: previous.isSelf || player.isSelf,
+        champion: mergeChampion(previous.champion, player.champion),
+        stats: mergeStats(previous.stats, player.stats),
+      }
+      : player)
+  })
+
+  return [...merged.values()]
+}
+
 function mergeStats(existing: PostGameShareStatBlock, incoming?: PostGameShareStatBlock): PostGameShareStatBlock {
   if (!incoming) {
     return existing
@@ -805,6 +944,7 @@ function mergeSnapshot(update: SnapshotUpdate): void {
     champion: mergeChampion(currentSnapshot.champion, update.champion),
     stats: mergeStats(currentSnapshot.stats, update.stats),
     augments: mergeAugments(currentSnapshot.augments, update.augments),
+    players: mergePlayers(currentSnapshot.players, update.players),
     identityCandidates: [
       ...new Set([
         ...currentSnapshot.identityCandidates,
@@ -959,6 +1099,10 @@ async function buildSnapshotUpdateFromPayload(params: {
   const queueName = gameMode.toUpperCase().includes('ARAM') ? 'ARAM' : gameMode || currentSnapshot.queueName
   const summonerName = extractSummonerName(selectedPlayer) || extractSummonerName(activePlayer) || currentSnapshot.summonerName
   const durationSeconds = extractDurationSeconds(params.payload) ?? currentSnapshot.durationSeconds
+  const players = await collectPosterPlayers(params.payload, selectedPlayer, [
+    ...context.identityCandidates,
+    ...collectIdentityCandidates(selectedPlayer),
+  ])
 
   return {
     result,
@@ -969,6 +1113,7 @@ async function buildSnapshotUpdateFromPayload(params: {
     champion,
     stats,
     augments: liveAugments,
+    players,
     identityCandidates: context.identityCandidates,
     sources: [params.source],
   }
@@ -1015,9 +1160,14 @@ async function fetchImageDataUrl(url: string): Promise<string | null> {
 }
 
 async function hydratePosterImages(data: PostGameSharePosterData): Promise<PostGameSharePosterData> {
-  const [championImageDataUrl, augmentImageDataUrls] = await Promise.all([
+  const [championImageDataUrl, augmentImageDataUrls, playerImageDataUrls] = await Promise.all([
     fetchImageDataUrl(data.champion.imageUrl),
     Promise.all(data.augments.map((augment) => fetchImageDataUrl(augment.iconUrl))),
+    Promise.all(data.players.map((player) => (
+      player.champion.imageUrl === data.champion.imageUrl
+        ? Promise.resolve<string | null>(null)
+        : fetchImageDataUrl(player.champion.imageUrl)
+    ))),
   ])
 
   return {
@@ -1029,6 +1179,14 @@ async function hydratePosterImages(data: PostGameSharePosterData): Promise<PostG
     augments: data.augments.map((augment, index) => ({
       ...augment,
       imageDataUrl: augmentImageDataUrls[index] || null,
+    })),
+    players: data.players.map((player, index) => ({
+      ...player,
+      champion: {
+        ...player.champion,
+        imageDataUrl: playerImageDataUrls[index] ||
+          (player.champion.imageUrl === data.champion.imageUrl ? championImageDataUrl : null),
+      },
     })),
   }
 }
@@ -1073,6 +1231,13 @@ async function buildPosterData(reason: string, hydrateImages: boolean): Promise<
     augments: currentSnapshot.augments.map((augment) => ({
       ...augment,
       imageDataUrl: null,
+    })),
+    players: currentSnapshot.players.map((player) => ({
+      ...player,
+      champion: {
+        ...player.champion,
+        imageDataUrl: null,
+      },
     })),
     sources: currentSnapshot.sources,
     updatedAt: currentSnapshot.updatedAt,
@@ -1292,6 +1457,54 @@ export async function createMockPostGameSharePosterData(): Promise<{
       championId
     )
 
+    const selfStats: PostGameShareStatBlock = {
+      kills,
+      deaths,
+      assists,
+      kda,
+      damageDealtToChampions,
+      damageTaken,
+      goldEarned,
+      creepScore: 58 + Math.floor(Math.random() * 38),
+      killParticipation: 0.72 + Math.random() * 0.22,
+    }
+    const mockPlayers: SnapshotPlayer[] = [{
+      key: 'name:aramgg玩家',
+      summonerName: 'ARAMGG玩家',
+      team: 'ORDER',
+      isSelf: true,
+      champion,
+      stats: selfStats,
+    }]
+    const mockNames = ['队友甲', '队友乙', '队友丙', '队友丁', '对手一', '对手二', '对手三', '对手四', '对手五']
+    for (let index = 0; index < mockNames.length; index += 1) {
+      const rosterChampion = championRoster.length
+        ? championRoster[Math.floor(Math.random() * championRoster.length)]
+        : null
+      const mockChampionId = toPositiveInteger(rosterChampion?.championId ?? rosterChampion?.id) || 1 + index
+      const mockKills = 3 + Math.floor(Math.random() * 16)
+      const mockDeaths = 2 + Math.floor(Math.random() * 9)
+      const mockAssists = 10 + Math.floor(Math.random() * 24)
+      mockPlayers.push({
+        key: `name:${mockNames[index]}`,
+        summonerName: mockNames[index],
+        team: index < 4 ? 'ORDER' : 'CHAOS',
+        isSelf: false,
+        champion: await createChampion(mockChampionId, getStringValue(rosterChampion?.nameCN || rosterChampion?.name)),
+        stats: {
+          kills: mockKills,
+          deaths: mockDeaths,
+          assists: mockAssists,
+          kda: Number(((mockKills + mockAssists) / Math.max(1, mockDeaths)).toFixed(2)),
+          damageDealtToChampions: 18000 + Math.floor(Math.random() * 48000),
+          damageTaken: 16000 + Math.floor(Math.random() * 30000),
+          goldEarned: 11000 + Math.floor(Math.random() * 7000),
+          creepScore: 30 + Math.floor(Math.random() * 60),
+          killParticipation: 0.4 + Math.random() * 0.5,
+        },
+      })
+    }
+
     currentSnapshot = {
       result: 'victory',
       gameMode: 'ARAM',
@@ -1299,18 +1512,9 @@ export async function createMockPostGameSharePosterData(): Promise<{
       durationSeconds: 1128,
       summonerName: 'ARAMGG玩家',
       champion,
-      stats: {
-        kills,
-        deaths,
-        assists,
-        kda,
-        damageDealtToChampions,
-        damageTaken,
-        goldEarned,
-        creepScore: 58 + Math.floor(Math.random() * 38),
-        killParticipation: 0.72 + Math.random() * 0.22,
-      },
+      stats: selfStats,
       augments,
+      players: mockPlayers,
       identityCandidates: [],
       sources: ['mock'],
       updatedAt: Date.now(),

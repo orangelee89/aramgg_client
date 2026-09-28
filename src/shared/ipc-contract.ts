@@ -9,6 +9,7 @@ export type AppStoreKey =
   | 'augments.showTopOverlay'
   | 'augments.showSidePanel'
   | 'postGameShare.autoShow'
+  | 'postGameShare.comparePlayers'
 
 export type SupportedDataLocale = 'zh-CN' | 'zh-TW' | 'en-US'
 

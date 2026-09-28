@@ -16,9 +16,45 @@
           ref="canvasRef"
           class="post-share-canvas"
           :width="POSTER_WIDTH"
-          :height="POSTER_HEIGHT"
+          :height="posterHeight"
         ></canvas>
       </div>
+
+      <section v-if="comparePlayers.length > 0" class="post-share-compare">
+        <div class="post-share-compare-header">
+          <span class="post-share-compare-title">{{ t('postGame.damageCompare') }}</span>
+          <span class="post-share-compare-hint">{{ t('postGame.damageCompareHint') }}</span>
+        </div>
+        <div class="post-share-compare-list">
+          <template v-for="group in comparePlayerGroups" :key="group.key">
+            <p class="post-share-compare-group">{{ group.label }}</p>
+            <label
+              v-for="player in group.players"
+              :key="player.key"
+              class="post-share-compare-row"
+              :class="{ pinned: isPinnedPlayer(player) }"
+            >
+              <input
+                type="checkbox"
+                class="post-share-compare-checkbox"
+                :checked="isSelectedPlayer(player)"
+                @change="togglePlayer(player)"
+              />
+              <span class="post-share-compare-champion">{{ player.champion?.name || t('postGame.championFallback') }}</span>
+              <span class="post-share-compare-summoner">{{ player.summonerName }}</span>
+              <button
+                type="button"
+                class="post-share-pin"
+                :class="{ active: isPinnedPlayer(player) }"
+                :title="t('postGame.pinPlayer')"
+                @click.prevent="togglePinnedPlayer(player)"
+              >
+                <Pin class="post-share-pin-icon" />
+              </button>
+            </label>
+          </template>
+        </div>
+      </section>
 
       <div class="post-share-actions">
         <button
@@ -56,7 +92,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { CheckCircle2, CircleAlert, Copy, Download, X } from 'lucide-vue-next'
+import { CheckCircle2, CircleAlert, Copy, Download, Pin, X } from 'lucide-vue-next'
 import { electronAPI } from '../native/electron-api.ts'
 import { trackAnalyticsEvent } from '../services/analytics.ts'
 import { useI18n } from 'vue-i18n'
@@ -84,6 +120,126 @@ const toast = ref({
 })
 let drawToken = 0
 let toastTimer = null
+
+// 伤害对比：勾选本局其他玩家后，海报在经济/KDA 下方插入输出/承伤柱状图；
+// "固定"的玩家名存到 postGameShare.comparePlayers，以后同一个人在局里就自动勾上。
+const COMPARE_STORE_KEY = 'postGameShare.comparePlayers'
+const CHART_TOP = 774
+const CHART_HEADER_HEIGHT = 54
+const CHART_ROW_HEIGHT = 66
+const CHART_BOTTOM_PADDING = 18
+const CHART_SECTION_GAP = 22
+const selectedPlayerKeys = ref([])
+const pinnedPlayerNames = ref([])
+
+function normalizePlayerName(value) {
+  return String(value || '')
+    .split('#')[0]
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .trim()
+}
+
+function hasDamageStats(player) {
+  const stats = player?.stats || {}
+  return safeNumber(stats.damageDealtToChampions) != null || safeNumber(stats.damageTaken) != null
+}
+
+const posterPlayers = computed(() => Array.isArray(props.poster?.players) ? props.poster.players : [])
+const selfPlayer = computed(() => posterPlayers.value.find((player) => player?.isSelf) || null)
+const comparePlayers = computed(() =>
+  posterPlayers.value.filter((player) => player && !player.isSelf && player.key && hasDamageStats(player))
+)
+const comparePlayerGroups = computed(() => {
+  const selfTeam = selfPlayer.value?.team || ''
+  const allies = comparePlayers.value.filter((player) => !selfTeam || player.team === selfTeam)
+  const enemies = comparePlayers.value.filter((player) => selfTeam && player.team && player.team !== selfTeam)
+  const groups = []
+  if (allies.length) groups.push({ key: 'ally', label: t('postGame.teamAlly'), players: allies })
+  if (enemies.length) groups.push({ key: 'enemy', label: t('postGame.teamEnemy'), players: enemies })
+  return groups
+})
+const chartPlayers = computed(() => {
+  const selected = comparePlayers.value.filter((player) => selectedPlayerKeys.value.includes(player.key))
+  if (!selected.length) return []
+  const poster = props.poster || {}
+  const self = {
+    key: selfPlayer.value?.key || 'self',
+    summonerName: poster.summonerName || selfPlayer.value?.summonerName || '',
+    champion: poster.champion || selfPlayer.value?.champion || null,
+    stats: poster.stats || selfPlayer.value?.stats || {},
+    isSelf: true,
+  }
+  return [self, ...selected]
+})
+const chartHeight = computed(() =>
+  chartPlayers.value.length > 1
+    ? CHART_HEADER_HEIGHT + chartPlayers.value.length * CHART_ROW_HEIGHT + CHART_BOTTOM_PADDING
+    : 0
+)
+const layoutShift = computed(() => chartHeight.value > 0 ? chartHeight.value + CHART_SECTION_GAP : 0)
+const posterHeight = computed(() => POSTER_HEIGHT + layoutShift.value)
+
+function isSelectedPlayer(player) {
+  return selectedPlayerKeys.value.includes(player.key)
+}
+
+function isPinnedPlayer(player) {
+  const name = normalizePlayerName(player?.summonerName)
+  return Boolean(name) && pinnedPlayerNames.value.includes(name)
+}
+
+function togglePlayer(player) {
+  if (isSelectedPlayer(player)) {
+    selectedPlayerKeys.value = selectedPlayerKeys.value.filter((key) => key !== player.key)
+  } else {
+    selectedPlayerKeys.value = [...selectedPlayerKeys.value, player.key]
+  }
+}
+
+async function savePinnedPlayers() {
+  try {
+    await electronAPI.store.set(COMPARE_STORE_KEY, [...pinnedPlayerNames.value])
+  } catch (error) {
+    console.warn('Failed to save pinned compare players:', error)
+  }
+}
+
+function togglePinnedPlayer(player) {
+  const name = normalizePlayerName(player?.summonerName)
+  if (!name) return
+  if (pinnedPlayerNames.value.includes(name)) {
+    pinnedPlayerNames.value = pinnedPlayerNames.value.filter((item) => item !== name)
+  } else {
+    pinnedPlayerNames.value = [...pinnedPlayerNames.value, name]
+    if (!isSelectedPlayer(player)) {
+      selectedPlayerKeys.value = [...selectedPlayerKeys.value, player.key]
+    }
+  }
+  void savePinnedPlayers()
+}
+
+function syncSelectedPlayers() {
+  const available = new Set(comparePlayers.value.map((player) => player.key))
+  const kept = selectedPlayerKeys.value.filter((key) => available.has(key))
+  const autoSelected = comparePlayers.value
+    .filter((player) => isPinnedPlayer(player) && !kept.includes(player.key))
+    .map((player) => player.key)
+  selectedPlayerKeys.value = [...kept, ...autoSelected]
+}
+
+async function loadPinnedPlayers() {
+  try {
+    const stored = await electronAPI.store.get(COMPARE_STORE_KEY)
+    pinnedPlayerNames.value = Array.isArray(stored)
+      ? stored.map(normalizePlayerName).filter(Boolean)
+      : []
+  } catch (error) {
+    console.warn('Failed to load pinned compare players:', error)
+    pinnedPlayerNames.value = []
+  }
+  syncSelectedPlayers()
+}
 
 const resultLabel = computed(() => {
   if (props.poster?.result === 'victory') return t('postGame.victory')
@@ -270,8 +426,8 @@ function drawCircularImage(ctx, image, x, y, radius, fallbackText) {
     fallbackGradient.addColorStop(1, '#c8573f')
     ctx.fillStyle = fallbackGradient
     ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
-    drawText(ctx, fallbackText.slice(0, 2), x, y + 10, {
-      size: 42,
+    drawText(ctx, fallbackText.slice(0, 2), x, y + Math.round(radius * 0.2), {
+      size: Math.round(radius * 0.84),
       weight: 800,
       color: '#ffffff',
       align: 'center',
@@ -287,34 +443,124 @@ function drawCircularImage(ctx, image, x, y, radius, fallbackText) {
   ctx.stroke()
 }
 
-function drawBackground(ctx) {
-  const gradient = ctx.createLinearGradient(0, 0, POSTER_WIDTH, POSTER_HEIGHT)
+function drawBackground(ctx, height = POSTER_HEIGHT) {
+  const gradient = ctx.createLinearGradient(0, 0, POSTER_WIDTH, height)
   gradient.addColorStop(0, '#121a22')
   gradient.addColorStop(0.5, '#0b1016')
   gradient.addColorStop(1, '#191b20')
   ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT)
+  ctx.fillRect(0, 0, POSTER_WIDTH, height)
 
   const glow = ctx.createRadialGradient(140, 110, 0, 140, 110, 460)
   glow.addColorStop(0, 'rgba(41, 210, 188, 0.25)')
   glow.addColorStop(1, 'rgba(41, 210, 188, 0)')
   ctx.fillStyle = glow
-  ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT)
+  ctx.fillRect(0, 0, POSTER_WIDTH, height)
 
   const ember = ctx.createRadialGradient(690, 310, 0, 690, 310, 420)
   ember.addColorStop(0, 'rgba(232, 100, 64, 0.28)')
   ember.addColorStop(1, 'rgba(232, 100, 64, 0)')
   ctx.fillStyle = ember
-  ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT)
+  ctx.fillRect(0, 0, POSTER_WIDTH, height)
 
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)'
   ctx.lineWidth = 1
   for (let x = 60; x < POSTER_WIDTH; x += 70) {
     ctx.beginPath()
     ctx.moveTo(x, 0)
-    ctx.lineTo(x - 260, POSTER_HEIGHT)
+    ctx.lineTo(x - 260, height)
     ctx.stroke()
   }
+}
+
+function drawDamageBar(ctx, x, y, width, height, ratio, color, label) {
+  fillRoundedRect(ctx, x, y, width, height, height / 2, 'rgba(255, 255, 255, 0.08)')
+  const barWidth = Math.max(height, Math.round(width * Math.max(0, Math.min(1, ratio))))
+  fillRoundedRect(ctx, x, y, barWidth, height, height / 2, color)
+  drawText(ctx, label, x + width + 12, y + height / 2, {
+    size: 18,
+    weight: 800,
+    color,
+    baseline: 'middle',
+  })
+}
+
+/**
+ * 输出/承伤对比：每个玩家一行，左侧头像+名字，右侧两条水平柱（输出、承伤），
+ * 以所有参与对比玩家的最大值为满刻度。
+ */
+function drawDamageCompare(ctx, top, players, images) {
+  const x = 52
+  const width = 646
+  const height = CHART_HEADER_HEIGHT + players.length * CHART_ROW_HEIGHT + CHART_BOTTOM_PADDING
+  const dealtColor = '#9be8dc'
+  const takenColor = '#ffb06e'
+  const barX = 262
+  const barWidth = 356
+  const maxValue = Math.max(
+    1,
+    ...players.map((player) => Math.max(
+      safeNumber(player.stats?.damageDealtToChampions) || 0,
+      safeNumber(player.stats?.damageTaken) || 0
+    ))
+  )
+
+  fillRoundedRect(ctx, x, top, width, height, 24, 'rgba(255, 255, 255, 0.07)')
+  strokeRoundedRect(ctx, x, top, width, height, 24, 'rgba(255, 255, 255, 0.11)')
+  drawText(ctx, t('postGame.damageCompare'), x + 32, top + 36, {
+    size: 22,
+    weight: 800,
+    color: '#9be8dc',
+  })
+  fillRoundedRect(ctx, x + width - 214, top + 20, 14, 14, 4, dealtColor)
+  drawText(ctx, t('postGame.damageDealtShort'), x + width - 194, top + 33, {
+    size: 16,
+    weight: 700,
+    color: 'rgba(214, 226, 238, 0.78)',
+  })
+  fillRoundedRect(ctx, x + width - 118, top + 20, 14, 14, 4, takenColor)
+  drawText(ctx, t('postGame.damageTakenShort'), x + width - 98, top + 33, {
+    size: 16,
+    weight: 700,
+    color: 'rgba(214, 226, 238, 0.78)',
+  })
+
+  players.forEach((player, index) => {
+    const rowTop = top + CHART_HEADER_HEIGHT + index * CHART_ROW_HEIGHT
+    const centerY = rowTop + CHART_ROW_HEIGHT / 2
+    const nameColor = player.isSelf ? '#9be8dc' : '#f6fbff'
+    const displayName = buildChampionDisplayName(player.champion)
+    const summonerName = player.isSelf
+      ? t('postGame.you')
+      : String(player.summonerName || '').split('#')[0]
+
+    if (index > 0) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)'
+      ctx.beginPath()
+      ctx.moveTo(x + 24, rowTop)
+      ctx.lineTo(x + width - 24, rowTop)
+      ctx.stroke()
+    }
+
+    drawCircularImage(ctx, images[index], x + 48, centerY, 22, displayName)
+    drawText(ctx, displayName, x + 82, centerY - 4, {
+      size: 20,
+      weight: 800,
+      color: nameColor,
+      maxWidth: 150,
+    })
+    drawText(ctx, summonerName, x + 82, centerY + 18, {
+      size: 15,
+      weight: 600,
+      color: 'rgba(214, 226, 238, 0.6)',
+      maxWidth: 150,
+    })
+
+    const dealt = safeNumber(player.stats?.damageDealtToChampions)
+    const taken = safeNumber(player.stats?.damageTaken)
+    drawDamageBar(ctx, barX, centerY - 20, barWidth, 16, (dealt || 0) / maxValue, dealtColor, formatLargeNumber(dealt))
+    drawDamageBar(ctx, barX, centerY + 4, barWidth, 16, (taken || 0) / maxValue, takenColor, formatLargeNumber(taken))
+  })
 }
 
 function drawStatCell(ctx, x, y, width, height, label, value, accent) {
@@ -453,19 +699,29 @@ async function drawPoster() {
   const stats = poster.stats || {}
   const [kills, deaths, assists] = getKdaParts()
   const posterAugments = getPosterAugments(poster)
+  const comparePlayerList = chartPlayers.value
+  const shift = layoutShift.value
+  const canvasHeight = POSTER_HEIGHT + shift
   const championImagePromise = loadImage(poster.champion?.imageDataUrl)
   const augmentImagePromises = posterAugments.map((augment) =>
     loadImage(augment.imageDataUrl)
   )
-  const [championImage, augmentImages] = await Promise.all([
+  const comparePlayerImagePromises = comparePlayerList.map((player) =>
+    loadImage(player.champion?.imageDataUrl)
+  )
+  const [championImage, augmentImages, comparePlayerImages] = await Promise.all([
     championImagePromise,
     Promise.all(augmentImagePromises),
+    Promise.all(comparePlayerImagePromises),
   ])
 
   if (token !== drawToken) return
 
-  ctx.clearRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT)
-  drawBackground(ctx)
+  if (canvas.height !== canvasHeight) {
+    canvas.height = canvasHeight
+  }
+  ctx.clearRect(0, 0, POSTER_WIDTH, canvasHeight)
+  drawBackground(ctx, canvasHeight)
 
   drawText(ctx, t('postGame.title'), 58, 70, {
     size: 24,
@@ -528,12 +784,16 @@ async function drawPoster() {
   drawStatCell(ctx, 52, 636, cellWidth, 118, t('postGame.gold'), formatLargeNumber(stats.goldEarned), '#e7bd68')
   drawStatCell(ctx, 392, 636, cellWidth, 118, 'KDA', formatKdaValue(stats.kda), '#caa8ff')
 
-  drawText(ctx, t('postGame.augments'), 58, 820, {
+  if (comparePlayerList.length > 1) {
+    drawDamageCompare(ctx, CHART_TOP, comparePlayerList, comparePlayerImages)
+  }
+
+  drawText(ctx, t('postGame.augments'), 58, 820 + shift, {
     size: 28,
     weight: 900,
     color: '#ffffff',
   })
-  drawText(ctx, 'Hextech Augments', 58, 852, {
+  drawText(ctx, 'Hextech Augments', 58, 852 + shift, {
     size: 18,
     weight: 700,
     color: 'rgba(214, 226, 238, 0.5)',
@@ -541,22 +801,22 @@ async function drawPoster() {
 
   if (posterAugments.length <= 3) {
     posterAugments.forEach((augment, index) => {
-      drawAugmentCard(ctx, augment, augmentImages[index], 882 + index * 126)
+      drawAugmentCard(ctx, augment, augmentImages[index], 882 + shift + index * 126)
     })
   } else {
     posterAugments.forEach((augment, index) => {
       const column = index % 2
       const row = Math.floor(index / 2)
-      drawCompactAugmentCard(ctx, augment, augmentImages[index], 58 + column * 328, 882 + row * 100)
+      drawCompactAugmentCard(ctx, augment, augmentImages[index], 58 + column * 328, 882 + shift + row * 100)
     })
   }
 
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
   ctx.beginPath()
-  ctx.moveTo(58, 1260)
-  ctx.lineTo(692, 1260)
+  ctx.moveTo(58, 1260 + shift)
+  ctx.lineTo(692, 1260 + shift)
   ctx.stroke()
-  drawText(ctx, t('postGame.footer'), 375, 1300, {
+  drawText(ctx, t('postGame.footer'), 375, 1300 + shift, {
     size: 22,
     weight: 800,
     color: 'rgba(246, 251, 255, 0.86)',
@@ -657,13 +917,19 @@ async function savePoster() {
 watch(
   () => [props.poster, locale.value],
   () => {
+    syncSelectedPlayers()
     drawPoster()
   },
   { deep: true }
 )
 
+watch(selectedPlayerKeys, () => {
+  drawPoster()
+})
+
 onMounted(() => {
   drawPoster()
+  void loadPinnedPlayers().then(() => drawPoster())
 })
 
 onBeforeUnmount(() => {
@@ -772,6 +1038,120 @@ onBeforeUnmount(() => {
   outline: 1px solid rgba(255, 255, 255, 0.1);
   outline-offset: -1px;
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38);
+}
+
+.post-share-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  outline: 1px solid rgba(255, 255, 255, 0.08);
+  outline-offset: -1px;
+}
+
+.post-share-compare-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.post-share-compare-title {
+  color: #9be8dc;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.post-share-compare-hint {
+  color: rgba(214, 226, 238, 0.55);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.post-share-compare-list {
+  max-height: 148px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.post-share-compare-group {
+  margin: 4px 0 0;
+  color: rgba(214, 226, 238, 0.5);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.post-share-compare-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.post-share-compare-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.post-share-compare-row.pinned {
+  background: rgba(155, 232, 220, 0.08);
+}
+
+.post-share-compare-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: #9be8dc;
+  cursor: pointer;
+}
+
+.post-share-compare-champion {
+  color: #f7fbff;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-share-compare-summoner {
+  color: rgba(214, 226, 238, 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-share-pin {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  color: rgba(214, 226, 238, 0.45);
+  background: transparent;
+  cursor: pointer;
+}
+
+.post-share-pin:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f7fbff;
+}
+
+.post-share-pin.active {
+  color: #e7bd68;
+}
+
+.post-share-pin-icon {
+  width: 13px;
+  height: 13px;
 }
 
 .post-share-actions {

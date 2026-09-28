@@ -23,6 +23,7 @@ const RENDERER_STORE_KEYS = new Set<AppStoreKey>([
   'augments.showTopOverlay',
   'augments.showSidePanel',
   'postGameShare.autoShow',
+  'postGameShare.comparePlayers',
 ])
 
 function assertRendererStoreKey(key: unknown): asserts key is AppStoreKey {
