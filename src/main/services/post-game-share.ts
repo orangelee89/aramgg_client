@@ -61,6 +61,8 @@ export type PostGameSharePlayer = {
   isSelf: boolean
   champion: PostGameShareChampion
   stats: PostGameShareStatBlock
+  /** 终局装备 ID（赛后数据块提供；用于针对性出装加成）。 */
+  items: number[]
   rating: HorseRating | null
 }
 
@@ -800,6 +802,24 @@ function readTeam(record: AnyRecord): PostGameSharePlayer['team'] {
   return ''
 }
 
+/**
+ * 终局装备：赛后数据块是数字数组，Live Client Data 是带 itemID 的对象数组。
+ */
+function readPlayerItems(record: AnyRecord): number[] {
+  const raw = Array.isArray(record.items) ? record.items : []
+  return raw
+    .map((item: unknown) => {
+      if (typeof item === 'number' || typeof item === 'string') {
+        return Number(item)
+      }
+      if (isRecord(item)) {
+        return Number(item.itemID ?? item.itemId ?? item.id)
+      }
+      return Number.NaN
+    })
+    .filter((id: number) => Number.isInteger(id) && id > 0)
+}
+
 function buildPlayerKey(summonerName: string, team: string, championId: number | null): string {
   const identity = normalizeIdentityText(summonerName)
   if (identity) {
@@ -839,12 +859,16 @@ export async function collectPosterPlayers(
 
     // 同一个人可能出现多次（队伍列表里一条、localPlayer 一条），合并而不是丢弃后者：
     // 自己的标记取并集，缺的数据用后来的补上。
+    const items = readPlayerItems(candidate)
     const existing = playersByKey.get(key)
     if (existing) {
       existing.isSelf = existing.isSelf || isSelf
       existing.stats = mergePlayerStats(existing.stats, stats)
       if (!existing.team && team) {
         existing.team = team
+      }
+      if (items.length > existing.items.length) {
+        existing.items = items
       }
       continue
     }
@@ -860,6 +884,7 @@ export async function collectPosterPlayers(
       isSelf,
       champion: await createChampion(championId, championName),
       stats,
+      items,
     })
   }
 
@@ -900,6 +925,7 @@ function mergePlayers(existing: SnapshotPlayer[], incoming?: SnapshotPlayer[]): 
         isSelf: previous.isSelf || player.isSelf,
         champion: mergeChampion(previous.champion, player.champion),
         stats: mergePlayerStats(previous.stats, player.stats),
+        items: player.items.length >= previous.items.length ? player.items : previous.items,
       }
       : player)
   })
@@ -1275,7 +1301,13 @@ async function buildPosterData(reason: string, hydrateImages: boolean): Promise<
     updatedAt: Date.now(),
   }
 
-  const ratings = computeHorseRatings(currentSnapshot.players)
+  const ratings = computeHorseRatings(currentSnapshot.players.map((player) => ({
+    key: player.key,
+    team: player.team,
+    championId: player.champion.id,
+    items: player.items,
+    stats: player.stats,
+  })))
   const selfSnapshotPlayer = currentSnapshot.players.find((player) => player.isSelf) || null
   const selfRating = selfSnapshotPlayer ? ratings.get(selfSnapshotPlayer.key) || null : null
 
@@ -1609,6 +1641,7 @@ export async function createMockPostGameSharePosterData(): Promise<{
       isSelf: true,
       champion,
       stats: selfStats,
+      items: [3033, 3006, 6672],
     }]
     const mockNames = ['队友甲', '队友乙', '队友丙', '队友丁', '对手一', '对手二', '对手三', '对手四', '对手五']
     for (let index = 0; index < mockNames.length; index += 1) {
@@ -1625,6 +1658,7 @@ export async function createMockPostGameSharePosterData(): Promise<{
         team: index < 4 ? 'ORDER' : 'CHAOS',
         isSelf: false,
         champion: await createChampion(mockChampionId, getStringValue(rosterChampion?.nameCN || rosterChampion?.name)),
+        items: Math.random() < 0.3 ? [6695, 3006] : [3006],
         stats: {
           kills: mockKills,
           deaths: mockDeaths,

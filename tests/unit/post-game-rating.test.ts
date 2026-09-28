@@ -1,48 +1,79 @@
 import { describe, expect, it } from 'vitest'
-import { computeHorseRatings } from '../../src/main/services/post-game-rating.ts'
+import {
+  COUNTER_ITEM_BONUS,
+  computeCounterItemBonus,
+  computeHorseRatings,
+} from '../../src/main/services/post-game-rating.ts'
 
-const player = (key: string, team: string, stats: Record<string, number>) => ({ key, team, stats })
+const player = (
+  key: string,
+  team: string,
+  stats: Record<string, number>,
+  extra: { championId?: number; items?: number[] } = {}
+) => ({ key, team, stats, ...extra })
 
 describe('post-game horse honors', () => {
-  it('hands each honor to the leader of its stat within each team', () => {
+  it('names the team MVP by composite score and hands stat honors to team leaders', () => {
     const ratings = computeHorseRatings([
-      player('carry', 'ORDER', { kills: 8, deaths: 3, assists: 10, damageDealtToChampions: 60000, damageTaken: 20000 }),
-      player('tank', 'ORDER', { kills: 2, deaths: 6, assists: 20, damageDealtToChampions: 15000, damageTaken: 70000 }),
-      player('assassin', 'CHAOS', { kills: 14, deaths: 9, assists: 4, damageDealtToChampions: 40000, damageTaken: 25000 }),
-      player('support', 'CHAOS', { kills: 1, deaths: 5, assists: 30, damageDealtToChampions: 9000, damageTaken: 18000 }),
-      player('filler', 'CHAOS', { kills: 5, deaths: 4, assists: 12, damageDealtToChampions: 20000, damageTaken: 22000 }),
+      player('carry', 'ORDER', { kills: 12, deaths: 3, assists: 10, damageDealtToChampions: 60000, damageTaken: 20000, timeCCingOthers: 10 }),
+      player('tank', 'ORDER', { kills: 2, deaths: 6, assists: 20, damageDealtToChampions: 15000, damageTaken: 70000, timeCCingOthers: 60 }),
+      player('feeder', 'ORDER', { kills: 1, deaths: 11, assists: 4, damageDealtToChampions: 9000, damageTaken: 18000 }),
+      player('enemy', 'CHAOS', { kills: 14, deaths: 9, assists: 4, damageDealtToChampions: 40000, damageTaken: 25000 }),
+      player('enemy2', 'CHAOS', { kills: 5, deaths: 4, assists: 12, damageDealtToChampions: 20000, damageTaken: 22000 }),
     ])
 
-    // 我方：carry 输出+人头最高，tank 承伤+助攻+死亡最多——即使对面 assassin 人头更多，carry 仍是队内 K头
-    expect(ratings.get('carry')?.honors).toEqual(['top', 'kills'])
-    expect(ratings.get('carry')?.honorValues).toEqual({ top: 60000, kills: 8 })
-    expect(ratings.get('tank')?.honors).toEqual(['tank', 'assists', 'deaths'])
-    // 对面：assassin 输出+承伤+人头+死亡，support 助攻，filler 什么都不沾
-    expect(ratings.get('assassin')?.honors).toEqual(['top', 'tank', 'kills', 'deaths'])
-    expect(ratings.get('support')?.honors).toEqual(['assists'])
-    expect(ratings.get('filler')?.honors).toEqual([])
-    expect(ratings.get('filler')?.playerCount).toBe(5)
+    expect(ratings.get('carry')?.honors).toEqual(['leader', 'kills'])
+    expect(ratings.get('carry')?.score).toBeGreaterThan(ratings.get('tank')!.score)
+    expect(ratings.get('tank')?.honors).toEqual(['tank', 'assists'])
+    expect(ratings.get('feeder')?.honors).toEqual(['deaths'])
+    expect(ratings.get('enemy')?.honors).toEqual(['leader', 'tank', 'kills', 'deaths'])
+    expect(ratings.get('enemy2')?.honors).toEqual(['assists'])
+    expect(ratings.get('carry')?.playerCount).toBe(5)
   })
 
-  it('stacks honors in name order for a player who leads several stats', () => {
+  it('redistributes weight for metrics nobody on the team has', () => {
     const ratings = computeHorseRatings([
-      player('monster', 'ORDER', { kills: 20, deaths: 10, assists: 25, damageDealtToChampions: 80000, damageTaken: 60000 }),
-      player('quiet', 'CHAOS', { kills: 2, deaths: 2, assists: 3, damageDealtToChampions: 10000, damageTaken: 10000 }),
+      player('a', 'ORDER', { kills: 5, deaths: 2, assists: 5, damageDealtToChampions: 30000, damageTaken: 30000 }),
+      player('b', 'ORDER', { kills: 5, deaths: 2, assists: 5, damageDealtToChampions: 30000, damageTaken: 30000 }),
     ])
 
-    expect(ratings.get('monster')?.honors).toEqual(['top', 'tank', 'kills', 'assists', 'deaths'])
-    // quiet 独自一队，队内每项都是自己最高
-    expect(ratings.get('quiet')?.honors).toEqual(['top', 'tank', 'kills', 'assists', 'deaths'])
+    // 两人各项相同且没有治疗/控制数据：满分 10，且并列领头
+    expect(ratings.get('a')?.score).toBe(10)
+    expect(ratings.get('a')?.honors).toContain('leader')
+    expect(ratings.get('b')?.honors).toContain('leader')
   })
 
-  it('shares an honor between teammates tied at the top value', () => {
+  it('only credits anti-heal / anti-shield items when the enemy team calls for them', () => {
+    expect(computeCounterItemBonus([3033], [16, 1])).toBe(COUNTER_ITEM_BONUS)
+    expect(computeCounterItemBonus([3033], [1, 3])).toBe(0)
+    expect(computeCounterItemBonus([6695], [117])).toBe(COUNTER_ITEM_BONUS)
+    expect(computeCounterItemBonus([3033, 6695], [16, 117])).toBe(COUNTER_ITEM_BONUS * 2)
+    expect(computeCounterItemBonus([3033, 3165, 6695], [16, 117])).toBe(0.12)
+    expect(computeCounterItemBonus([], [16, 117])).toBe(0)
+  })
+
+  it('does not let counter items lift a mediocre player over the real MVP', () => {
     const ratings = computeHorseRatings([
-      player('a', 'ORDER', { kills: 9, deaths: 2, assists: 5, damageDealtToChampions: 30000, damageTaken: 30000 }),
-      player('b', 'ORDER', { kills: 9, deaths: 4, assists: 4, damageDealtToChampions: 20000, damageTaken: 20000 }),
+      player('mvp', 'ORDER', { kills: 15, deaths: 3, assists: 12, damageDealtToChampions: 70000, damageTaken: 30000 }),
+      player('shopper', 'ORDER', { kills: 4, deaths: 8, assists: 6, damageDealtToChampions: 20000, damageTaken: 20000 }, { items: [3033, 6695] }),
+      player('healer', 'CHAOS', { kills: 2, deaths: 5, assists: 20, damageDealtToChampions: 12000, damageTaken: 20000 }, { championId: 16 }),
+      player('shielder', 'CHAOS', { kills: 6, deaths: 5, assists: 10, damageDealtToChampions: 30000, damageTaken: 25000 }, { championId: 117 }),
     ])
 
-    expect(ratings.get('a')?.honors).toEqual(['top', 'tank', 'kills', 'assists'])
-    expect(ratings.get('b')?.honors).toEqual(['kills', 'deaths'])
+    expect(ratings.get('shopper')?.itemBonus).toBe(0.12)
+    expect(ratings.get('mvp')?.honors).toContain('leader')
+    expect(ratings.get('shopper')?.honors).not.toContain('leader')
+  })
+
+  it('lets counter items decide a close race', () => {
+    const ratings = computeHorseRatings([
+      player('a', 'ORDER', { kills: 10, deaths: 4, assists: 10, damageDealtToChampions: 50000, damageTaken: 30000 }),
+      player('b', 'ORDER', { kills: 10, deaths: 4, assists: 10, damageDealtToChampions: 48000, damageTaken: 30000 }, { items: [3165] }),
+      player('healer', 'CHAOS', { kills: 2, deaths: 5, assists: 20, damageDealtToChampions: 12000, damageTaken: 20000 }, { championId: 16 }),
+    ])
+
+    expect(ratings.get('b')?.honors).toContain('leader')
+    expect(ratings.get('a')?.honors).not.toContain('leader')
   })
 
   it('returns nothing without at least two players carrying stats', () => {

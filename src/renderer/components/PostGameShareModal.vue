@@ -575,7 +575,7 @@ function drawDamageCompare(ctx, top, players, images) {
 }
 
 const HORSE_HONOR_PART_KEYS = {
-  top: 'postGame.horsePartTop',
+  leader: 'postGame.horsePartLeader',
   tank: 'postGame.horsePartTank',
   kills: 'postGame.horsePartKills',
   assists: 'postGame.horsePartAssists',
@@ -583,7 +583,7 @@ const HORSE_HONOR_PART_KEYS = {
 }
 
 const HORSE_HONOR_REASON_KEYS = {
-  top: 'postGame.horseReasonTop',
+  leader: 'postGame.horseReasonLeader',
   tank: 'postGame.horseReasonTank',
   kills: 'postGame.horseReasonKills',
   assists: 'postGame.horseReasonAssists',
@@ -611,7 +611,11 @@ function getHorseTitleReason(rating) {
   if (!honors.length) return t('postGame.horseReasonNormal')
   return honors.map((honor) => {
     const value = rating.honorValues?.[honor]
-    const formatted = honor === 'top' || honor === 'tank'
+    if (honor === 'leader') {
+      const bonus = Number(rating.itemBonus || 0) > 0 ? t('postGame.horseLeaderBonus') : ''
+      return t(HORSE_HONOR_REASON_KEYS[honor], { value: Number(value || 0).toFixed(1), bonus })
+    }
+    const formatted = honor === 'tank'
       ? formatLargeNumber(value)
       : String(Math.round(Number(value) || 0))
     return t(HORSE_HONOR_REASON_KEYS[honor], { value: formatted })

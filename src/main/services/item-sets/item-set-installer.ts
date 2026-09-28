@@ -380,7 +380,8 @@ export function createItemSets(champion: ChampionLike, championName: ChampionLik
     const itemSet = createItemSet(champion, championName, build, index)
     if (itemSet) {
       // 标签直接用出装路线名（与英雄详情页一致，如 "Tank"、"AD / Bruiser"）；重名时加序号。
-      const numberedTitle = new RegExp(`^${title.replace(/[.*+?^${}()|[\]\/]/g, '\$&')} \d+$`)
+      const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const numberedTitle = new RegExp(`^${escapedTitle} \\d+$`)
       const duplicates = itemSets.filter((existing) => existing.title === title || numberedTitle.test(existing.title)).length
       itemSet.title = duplicates === 0 ? title : `${title} ${duplicates + 1}`
       itemSets.push(itemSet)
