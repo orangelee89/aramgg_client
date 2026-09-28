@@ -156,6 +156,18 @@ async function main() {
             .png()
             .toBuffer()
         await assertFixtureResult(analyzeScreenshot, automaticCaptureBuffer, sample, '1024x576')
+
+        // 原生抓帧路径：4K RGBA 原始像素直接进分析器，不经过 PNG。
+        const { data, info } = await sharp(imagePath)
+            .resize(3840, 2160, { fit: 'fill' })
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true })
+        const nativeFrame = { buffer: data, width: info.width, height: info.height, channels: info.channels }
+        await assertFixtureResult(analyzeScreenshot, nativeFrame, sample, '3840x2160-raw')
+        if (sample.expectedCardCount > 0) {
+            await assertGateResult(analyzeScreenshotGate, nativeFrame, sample, '3840x2160-raw')
+        }
     }
 }
 

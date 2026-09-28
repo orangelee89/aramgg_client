@@ -21,9 +21,11 @@ import {
     shouldActivateSelectionCapture,
 } from './auto-screenshot-policy.ts'
 import { analyzeScreenshot, analyzeScreenshotGate, warmupImageAnalyzer } from './image-analyzer.ts'
+import { isRawFrame } from './native-capture.ts'
 import { BrowserWindow } from 'electron'
 import fs from 'fs-extra'
 import path from 'path'
+import sharp from 'sharp'
 import logger from './modules/logger.ts'
 import {
     applyAugmentSidePanelWindowLayout,
@@ -218,6 +220,8 @@ class AutoScreenshotService {
         this.lastAnalysisDuration = 0
         this.captureTimeoutMs = 2500
         this.preferScreenCapture = true
+        this.lastCaptureSource = null
+        this.lastFrameSize = null
         this.lastSummaryLogAt = 0
         this.lastAnalysisMissLogAt = 0
         this.lastAnalysisMissKey = ''
@@ -545,10 +549,12 @@ class AutoScreenshotService {
             const thumbnailSize = stage === 'gate'
                 ? this._getCurrentGateThumbnailSize()
                 : this._getCurrentThumbnailSize()
+            // 原生抓帧返回 RGBA 原始像素（result.image）；desktopCapturer 回退时是 PNG（result.buffer）。
             const result = await captureScreenshot({
                 preferScreen: this.preferScreenCapture,
                 timeoutMs: this.captureTimeoutMs,
                 thumbnailSize,
+                output: 'raw',
             })
 
             if (!this.isRunning || runId !== this.runId) {
@@ -562,8 +568,11 @@ class AutoScreenshotService {
             const captureTimeMs = endTime - startTime
 
             if (result.success) {
+                const frame = result.image || result.buffer
                 this.screenshotCount++
                 this.lastScreenshotTime = Date.now()
+                this.lastCaptureSource = result.captureSource || 'electron'
+                this.lastFrameSize = { width: result.width, height: result.height }
 
                 // 记录性能数据
                 this._recordPerformance(captureTimeMs)
@@ -575,6 +584,8 @@ class AutoScreenshotService {
                         captureTimeMs: Number(captureTimeMs.toFixed(1)),
                         sinceStartMs: this.startedAt ? Date.now() - this.startedAt : 0,
                         preferScreenCapture: this.preferScreenCapture,
+                        captureSource: this.lastCaptureSource,
+                        frameSize: this.lastFrameSize,
                         captureMode: this.captureMode,
                         stage,
                         thumbnailSize,
@@ -584,6 +595,7 @@ class AutoScreenshotService {
                         captureTimeMs: Number(captureTimeMs.toFixed(1)),
                         screenshotCount: this.screenshotCount,
                         preferScreenCapture: this.preferScreenCapture,
+                        captureSource: this.lastCaptureSource,
                     })
                 }
                 this._logPerformanceSummary()
@@ -591,7 +603,7 @@ class AutoScreenshotService {
                 if (stage === 'gate') {
                     this.gateScreenshotCount++
                     if (this.enableAnalysis && this.isAnalysisAllowedByGameflow()) {
-                        await this._analyzeGateScreenshot(result.buffer, runId)
+                        await this._analyzeGateScreenshot(frame, runId)
                     }
                 } else {
                     if (this.controlOwner === 'gameflow') {
@@ -600,7 +612,7 @@ class AutoScreenshotService {
                 }
 
                 if (stage !== 'gate' && this.enableAnalysis) {
-                    this._queueAnalysis(result.buffer)
+                    this._queueAnalysis(frame)
                 }
 
                 return {
@@ -994,7 +1006,8 @@ class AutoScreenshotService {
 
         this.lastSummaryLogAt = now
         const stats = this.getPerformanceStats()
-        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, gateScreenshots=${stats.gateScreenshotCount}, fullOcrScreenshots=${stats.fullOcrScreenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, fullOcrBackoffSkips=${stats.fullOcrBackoffSkips}, mode=${stats.captureMode}, interval=${stats.activeInterval}ms, thumbnail=${stats.thumbnailSize.width}x${stats.thumbnailSize.height}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
+        const frameSize = stats.frameSize ? `${stats.frameSize.width}x${stats.frameSize.height}` : 'unknown'
+        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, gateScreenshots=${stats.gateScreenshotCount}, fullOcrScreenshots=${stats.fullOcrScreenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, fullOcrBackoffSkips=${stats.fullOcrBackoffSkips}, mode=${stats.captureMode}, interval=${stats.activeInterval}ms, capture=${stats.captureSource || 'none'}:${frameSize}, thumbnail=${stats.thumbnailSize.width}x${stats.thumbnailSize.height}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
     }
 
     _shouldClearVisibleAugmentsAfterMiss({ cardCount, augments = [] }) {
@@ -1136,8 +1149,17 @@ class AutoScreenshotService {
 
         void (async () => {
             try {
+                const pngBuffer = isRawFrame(imageBuffer)
+                    ? await sharp(imageBuffer.buffer, {
+                        raw: {
+                            width: imageBuffer.width,
+                            height: imageBuffer.height,
+                            channels: imageBuffer.channels,
+                        },
+                    }).png().toBuffer()
+                    : imageBuffer
                 await fs.ensureDir(dir)
-                await fs.writeFile(filePath, imageBuffer)
+                await fs.writeFile(filePath, pngBuffer)
                 if (!this._isCurrentAnalysisRun(runId)) {
                     return
                 }
@@ -1553,6 +1575,8 @@ class AutoScreenshotService {
                 isAnalyzing: this.isAnalyzing,
                 captureTimeoutMs: this.captureTimeoutMs,
                 preferScreenCapture: this.preferScreenCapture,
+                captureSource: this.lastCaptureSource,
+                frameSize: this.lastFrameSize,
                 interval: this.interval,
                 stableDetectionInterval: this.stableDetectionInterval,
                 idleInterval: this.idleInterval,
@@ -1598,6 +1622,8 @@ class AutoScreenshotService {
             isAnalyzing: this.isAnalyzing,
             captureTimeoutMs: this.captureTimeoutMs,
             preferScreenCapture: this.preferScreenCapture,
+            captureSource: this.lastCaptureSource,
+            frameSize: this.lastFrameSize,
             lastAnalysisTime: this.lastAnalysisTime,
             lastAnalysisDuration: parseFloat(this.lastAnalysisDuration.toFixed(2)),
             detectionRate: this.analysisCount > 0 ? (this.detectionCount / this.analysisCount * 100).toFixed(1) : 0,
@@ -1721,6 +1747,8 @@ class AutoScreenshotService {
             isAnalyzing: this.isAnalyzing,
             captureTimeoutMs: this.captureTimeoutMs,
             preferScreenCapture: this.preferScreenCapture,
+            captureSource: this.lastCaptureSource,
+            frameSize: this.lastFrameSize,
             stableDetectionInterval: this.stableDetectionInterval,
             idleInterval: this.idleInterval,
             captureMode: this.captureMode,

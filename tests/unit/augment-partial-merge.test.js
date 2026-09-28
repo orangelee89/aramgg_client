@@ -136,6 +136,57 @@ describe('mergePartialAugments', () => {
         expect(result).toBeNull()
     })
 
+    it('clears a stale slot when OCR reads a different title and the fingerprint moved slightly', () => {
+        // 4K 缩略图上 "收缩射线" 被读成别的名字、指纹只差几位时，旧的 "缩小引擎" 不能一直挂着。
+        const result = mergePartialAugments({
+            augments: [augment(2132, 1), augment(1238, 2)],
+            slotDiagnostics: [
+                { slot: 0, text: '收缩射线', matchedId: null, titleFingerprint: '0000000000000000000000000000000f' },
+                { slot: 1, text: '术士果汁盒', matchedId: 2132, titleFingerprint: '11111111111111111111111111111111' },
+                { slot: 2, text: '质变：棱彩阶', matchedId: 1238, titleFingerprint: '22222222222222222222222222222222' },
+            ],
+            lastDetectedAugmentIds: ['1373', '2132', '1238'],
+            lastDetectedAugments: [
+                { ...augment(1373, 0), name: '缩小引擎', displayName: '缩小引擎' },
+                augment(2132, 1),
+                augment(1238, 2),
+            ],
+            lastDetectedSlotFingerprints: [
+                '00000000000000000000000000000000',
+                '11111111111111111111111111111111',
+                '22222222222222222222222222222222',
+            ],
+        })
+
+        expect(result?.reason).toBe('slot-visual-changed')
+        expect(result?.changedUnmatchedSlots).toEqual([0])
+        expect(result?.augments.map(item => item.id)).toEqual([null, 2132, 1238])
+    })
+
+    it('keeps a slot when OCR only read part of the same title during a transition', () => {
+        const result = mergePartialAugments({
+            augments: [augment(2132, 1), augment(1238, 2)],
+            slotDiagnostics: [
+                { slot: 0, text: '缩小引', matchedId: null, titleFingerprint: '0000000000000000000000000000000f' },
+                { slot: 1, text: '术士果汁盒', matchedId: 2132, titleFingerprint: '11111111111111111111111111111111' },
+                { slot: 2, text: '质变：棱彩阶', matchedId: 1238, titleFingerprint: '22222222222222222222222222222222' },
+            ],
+            lastDetectedAugmentIds: ['1373', '2132', '1238'],
+            lastDetectedAugments: [
+                { ...augment(1373, 0), name: '缩小引擎' },
+                augment(2132, 1),
+                augment(1238, 2),
+            ],
+            lastDetectedSlotFingerprints: [
+                '00000000000000000000000000000000',
+                '11111111111111111111111111111111',
+                '22222222222222222222222222222222',
+            ],
+        })
+
+        expect(result).toBeNull()
+    })
+
     it('keeps the previous overlay during noisy unmatched text', () => {
         const result = mergePartialAugments({
             augments: [augment(1334, 1), augment(1070, 2)],

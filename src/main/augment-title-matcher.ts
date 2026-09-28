@@ -115,6 +115,36 @@ function fuzzyFind(text: string, name: string): FuzzyMatch | null {
   return bestMatch
 }
 
+/**
+ * OCR 标题文字是否还能对应上给定的海克斯名称之一。
+ * 用于判断卡位上的文字是否已经换成了另一张卡：完整命中、模糊命中、
+ * 或者文字只是名称的一部分（切换动画中读到半截），都视为仍然兼容。
+ */
+export function isTitleTextCompatibleWithNames(rawText: unknown, names: unknown[] = []): boolean {
+  const normalizedText = normalizeOcrTitleText(rawText)
+  if (!normalizedText) {
+    return false
+  }
+
+  return names.some((name) => {
+    const normalizedName = normalizeOcrTitleText(name)
+    if (!normalizedName) {
+      return false
+    }
+    if (normalizedName.includes(normalizedText) || normalizedText.includes(normalizedName)) {
+      return true
+    }
+    if (fuzzyFind(normalizedText, normalizedName)) {
+      return true
+    }
+    if (normalizedText.length >= 3 && normalizedName.length >= 3) {
+      const maxDistance = Math.max(1, Math.floor(Math.min(normalizedText.length, normalizedName.length) / 3))
+      return editDistance(normalizedText, normalizedName) <= maxDistance
+    }
+    return false
+  })
+}
+
 function getAugmentVersionPriority(augmentData: AugmentTitleRecord): number {
   const id = Number(augmentData.id) || 0
   return id >= 1000 ? id + 100000 : id

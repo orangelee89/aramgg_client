@@ -429,6 +429,11 @@ const PADDLE_OCR_TEXT_PIXEL_THRESHOLD = 0.55
 const PADDLE_OCR_PADDING_BOX_VERTICAL = 0.3
 const PADDLE_OCR_PADDING_BOX_HORIZONTAL = 0.5
 const PADDLE_OCR_RECOGNITION_IMAGE_HEIGHT = 48
+const PADDLE_OCR_TITLE_TARGET_WIDTH = 640
+const PADDLE_OCR_TITLE_MIN_SCALE = 1
+const PADDLE_OCR_TITLE_MAX_SCALE = 3
+const OCR_EXECUTION_PROVIDER_ENV = 'ARAMGG_OCR_EXECUTION_PROVIDER'
+const DEFAULT_OCR_EXECUTION_PROVIDERS = ['cpu']
 const OCR_TITLE_ACTIVITY_SAMPLE = { width: 160, height: 50 }
 const OCR_TITLE_FINGERPRINT_SIZE = { width: 16, height: 8 }
 const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
@@ -549,6 +554,61 @@ function logPaddleOcrUnavailable(message) {
     logger.warn(`PaddleOCR unavailable, falling back to legacy OCR: ${message}`)
 }
 
+/**
+ * ONNX Runtime 执行后端。`ARAMGG_OCR_EXECUTION_PROVIDER=dml` 走 DirectML（GPU），
+ * 可用逗号列出多个后端按顺序尝试；未设置时使用默认值。
+ */
+export function resolveOcrExecutionProviders(configured = process.env[OCR_EXECUTION_PROVIDER_ENV]) {
+    const providers = String(configured || '')
+        .split(',')
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean)
+
+    return providers.length > 0 ? providers : [...DEFAULT_OCR_EXECUTION_PROVIDERS]
+}
+
+function isCpuOnlyProviders(providers) {
+    return providers.every(provider => provider === 'cpu')
+}
+
+/**
+ * paddleocr 包创建会话时不接受 session 选项，这里包一层 ort，
+ * 在 InferenceSession.create 上注入 executionProviders；其余导出（Tensor 等）原样透传。
+ */
+function createOrtWithExecutionProviders(ort, providers) {
+    if (isCpuOnlyProviders(providers)) {
+        return ort
+    }
+
+    const wrapped = Object.create(ort)
+    wrapped.InferenceSession = {
+        create: (model, options = {}) => ort.InferenceSession.create(model, {
+            executionProviders: providers,
+            ...options,
+        }),
+    }
+    return wrapped
+}
+
+async function createPaddleOcrServiceWithProviders({ PaddleOcrService, ort, modelPaths, charactersDictionary, providers }) {
+    return await PaddleOcrService.createInstance({
+        ort: createOrtWithExecutionProviders(ort, providers),
+        detection: {
+            modelBuffer: bufferToArrayBuffer(readFileSync(modelPaths.detModelPath)),
+            maxSideLength: PADDLE_OCR_MAX_SIDE_LENGTH,
+            minimumAreaThreshold: PADDLE_OCR_MINIMUM_AREA_THRESHOLD,
+            textPixelThreshold: PADDLE_OCR_TEXT_PIXEL_THRESHOLD,
+            paddingBoxVertical: PADDLE_OCR_PADDING_BOX_VERTICAL,
+            paddingBoxHorizontal: PADDLE_OCR_PADDING_BOX_HORIZONTAL,
+        },
+        recognition: {
+            modelBuffer: bufferToArrayBuffer(readFileSync(modelPaths.recModelPath)),
+            charactersDictionary,
+            imageHeight: PADDLE_OCR_RECOGNITION_IMAGE_HEIGHT,
+        },
+    })
+}
+
 async function getPaddleOcrService() {
     if (paddleOcrDisabled) {
         return null
@@ -575,22 +635,25 @@ async function getPaddleOcrService() {
             const charactersDictionary = readPaddleOcrCharacterDictionary(
                 readFileSync(modelPaths.recConfigPath, 'utf8')
             )
-            const service = await PaddleOcrService.createInstance({
-                ort,
-                detection: {
-                    modelBuffer: bufferToArrayBuffer(readFileSync(modelPaths.detModelPath)),
-                    maxSideLength: PADDLE_OCR_MAX_SIDE_LENGTH,
-                    minimumAreaThreshold: PADDLE_OCR_MINIMUM_AREA_THRESHOLD,
-                    textPixelThreshold: PADDLE_OCR_TEXT_PIXEL_THRESHOLD,
-                    paddingBoxVertical: PADDLE_OCR_PADDING_BOX_VERTICAL,
-                    paddingBoxHorizontal: PADDLE_OCR_PADDING_BOX_HORIZONTAL,
-                },
-                recognition: {
-                    modelBuffer: bufferToArrayBuffer(readFileSync(modelPaths.recModelPath)),
-                    charactersDictionary,
-                    imageHeight: PADDLE_OCR_RECOGNITION_IMAGE_HEIGHT,
-                },
-            })
+            let providers = resolveOcrExecutionProviders()
+            let service
+            try {
+                service = await createPaddleOcrServiceWithProviders({
+                    PaddleOcrService, ort, modelPaths, charactersDictionary, providers,
+                })
+            } catch (error) {
+                if (isCpuOnlyProviders(providers)) {
+                    throw error
+                }
+                logger.warn('PaddleOCR GPU execution provider unavailable, falling back to CPU', {
+                    providers,
+                    error: error?.message || String(error),
+                })
+                providers = ['cpu']
+                service = await createPaddleOcrServiceWithProviders({
+                    PaddleOcrService, ort, modelPaths, charactersDictionary, providers,
+                })
+            }
 
             paddleOcrService = service
             if (!paddleOcrReadyLogged) {
@@ -599,6 +662,7 @@ async function getPaddleOcrService() {
                     runtimeDir: modelPaths.runtimeDir,
                     dictionarySize: charactersDictionary.length,
                     maxSideLength: PADDLE_OCR_MAX_SIDE_LENGTH,
+                    executionProviders: providers,
                 })
             }
 
@@ -671,6 +735,15 @@ function resolveImageBuffer(imageInput) {
         }
     }
 
+    // 原生截图直接给 RGBA 原始像素，跳过 PNG 编解码。
+    if (isRawImageInput(imageInput)) {
+        return {
+            buffer: imageInput,
+            sourceType: 'raw',
+            sourcePath: null,
+        }
+    }
+
     if (typeof imageInput === 'string' && imageInput.trim() !== '') {
         return {
             buffer: readFileSync(imageInput),
@@ -694,6 +767,17 @@ function isRawImageInput(value) {
         Number.isInteger(value.channels)
 }
 
+function isValidImageInput(value) {
+    if (isRawImageInput(value)) {
+        return value.buffer.length > 0
+    }
+    return Buffer.isBuffer(value) && value.length > 0
+}
+
+function getImageInputByteLength(value) {
+    return isRawImageInput(value) ? value.buffer.length : value.length
+}
+
 function sharpFromImage(imageInput) {
     if (isRawImageInput(imageInput)) {
         return sharp(imageInput.buffer, {
@@ -709,7 +793,11 @@ function sharpFromImage(imageInput) {
 }
 
 async function decodeImageToRaw(imageBuffer) {
-    const { data, info } = await sharp(imageBuffer)
+    if (isRawImageInput(imageBuffer) && imageBuffer.channels === 4) {
+        return imageBuffer
+    }
+
+    const { data, info } = await sharpFromImage(imageBuffer)
         .ensureAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true })
@@ -1118,16 +1206,32 @@ function createIndividualTitleRegions(width, height) {
     }))
 }
 
+/**
+ * 标题条送入 PaddleOCR 前的放大倍数。
+ * 低分辨率截图（≤1280 宽）放大 3 倍补足笔画；原生 2K/4K 抓帧本身已经足够清晰，
+ * 按目标宽度换算，避免把 4K 标题条放大成几千像素白白增加检测耗时。
+ */
+export function resolveTitleRegionScale(regionWidth, targetWidth = PADDLE_OCR_TITLE_TARGET_WIDTH) {
+    if (!Number.isFinite(regionWidth) || regionWidth <= 0) {
+        return PADDLE_OCR_TITLE_MAX_SCALE
+    }
+
+    const scale = targetWidth / regionWidth
+    return Math.min(PADDLE_OCR_TITLE_MAX_SCALE, Math.max(PADDLE_OCR_TITLE_MIN_SCALE, scale))
+}
+
 function createPaddleOcrTitleRegions(width, height) {
     const { cardWidth, cardGap, groupLeft } = createCardLayout(width, height)
+    const regionWidth = cardWidth * 0.96
+    const scale = resolveTitleRegionScale(regionWidth)
 
     return [0, 1, 2].map(index => ({
         name: `paddleocr-card-title-${index + 1}`,
         left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.02,
         top: height * 0.35,
-        width: cardWidth * 0.96,
+        width: regionWidth,
         height: height * 0.095,
-        scale: 3,
+        scale,
     }))
 }
 
@@ -2245,7 +2349,7 @@ export const analyzeScreenshotGate = async (imageInput) => {
         const startTime = performance.now()
         const { buffer: imageBuffer, sourceType, sourcePath } = resolveImageBuffer(imageInput)
 
-        if (!imageBuffer || !Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+        if (!isValidImageInput(imageBuffer)) {
             return {
                 success: false,
                 error: '截图数据无效',
@@ -2292,7 +2396,7 @@ export const analyzeScreenshot = async (imageInput) => {
         const { buffer: imageBuffer, sourceType, sourcePath } = resolveImageBuffer(imageInput)
 
         // 验证图片数据有效性
-        if (!imageBuffer || !Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+        if (!isValidImageInput(imageBuffer)) {
             return {
                 success: false,
                 error: '截图数据无效',
@@ -2300,7 +2404,7 @@ export const analyzeScreenshot = async (imageInput) => {
         }
 
         const timestamp = Date.now()
-        logger.debug(`Screenshot analysis started: source=${sourceType}${sourcePath ? `, path=${sourcePath}` : ''}, buffer=${(imageBuffer.length / 1024).toFixed(1)}KB`)
+        logger.debug(`Screenshot analysis started: source=${sourceType}${sourcePath ? `, path=${sourcePath}` : ''}, buffer=${(getImageInputByteLength(imageBuffer) / 1024).toFixed(1)}KB`)
 
         // 【新方案】使用OCR识别海克斯名称
         const recognition = await recognizeAugmentsFromImage(imageBuffer)
@@ -2332,10 +2436,10 @@ export const analyzeScreenshot = async (imageInput) => {
                 augmentGate,
             },
             metadata: {
-                bufferSize: imageBuffer.length,
+                bufferSize: getImageInputByteLength(imageBuffer),
                 sourceType,
                 sourcePath,
-                format: 'png',
+                format: sourceType === 'raw' ? 'raw' : 'png',
                 detectionMethod: 'ocr',
                 rerollButtons,
                 augmentGate,

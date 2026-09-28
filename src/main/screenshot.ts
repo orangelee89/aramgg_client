@@ -1,8 +1,18 @@
 import { execFile } from 'child_process'
 import { desktopCapturer, type DesktopCapturerSource, type Size } from 'electron'
+import sharp from 'sharp'
 import logger from './modules/logger.ts'
+import {
+    captureNativeScreenFrame,
+    getNativeCaptureLoadError,
+    isNativeCaptureAvailable,
+    type RawFrame,
+} from './native-capture.ts'
 
 let lastCaptureSourceKey: string | null = null
+let nativeCaptureUnavailableLogged = false
+let nativeCaptureConsecutiveFailures = 0
+const NATIVE_CAPTURE_MAX_CONSECUTIVE_FAILURES = 3
 export const CAPTURE_THUMBNAIL_SIZE = { width: 1280, height: 720 }
 const DEFAULT_CAPTURE_TIMEOUT_MS = 4000
 
@@ -161,16 +171,114 @@ type CaptureScreenshotOptions = {
     preferScreen?: boolean
     timeoutMs?: number
     thumbnailSize?: Size
+    /** raw：返回 RGBA 原始像素（OCR 直接消费）；png：返回 PNG Buffer（IPC/调试）。 */
+    output?: 'png' | 'raw'
 }
 
-export const captureScreenshot = async (options: CaptureScreenshotOptions = {}) => {
+export type CaptureScreenshotResult = {
+    success: true
+    buffer: Buffer | null
+    image: RawFrame | null
+    timestamp: number
+    hasLolWindow: boolean
+    captureMode: 'window' | 'screen' | 'native-screen'
+    captureSource: 'native' | 'electron'
+    windowName?: string
+    width: number
+    height: number
+    captureMs?: number
+} | {
+    success: false
+    error: string
+}
+
+function isNativeCaptureEnabled() {
+    return nativeCaptureConsecutiveFailures < NATIVE_CAPTURE_MAX_CONSECUTIVE_FAILURES &&
+        isNativeCaptureAvailable()
+}
+
+function logNativeCaptureUnavailable(reason: string) {
+    if (nativeCaptureUnavailableLogged) {
+        return
+    }
+    nativeCaptureUnavailableLogged = true
+    logger.warn(`Native screen capture unavailable, using desktopCapturer: ${reason}`)
+}
+
+async function captureWithNative(
+    output: 'png' | 'raw',
+    timeoutMs: number,
+    timestamp: number
+): Promise<CaptureScreenshotResult | null> {
+    try {
+        const frame = await withTimeout(captureNativeScreenFrame(), timeoutMs, 'native screen capture')
+        if (!frame) {
+            logNativeCaptureUnavailable(getNativeCaptureLoadError() || 'module missing')
+            return null
+        }
+
+        nativeCaptureConsecutiveFailures = 0
+        const sourceKey = `native:${frame.monitorName}:${frame.width}x${frame.height}`
+        if (sourceKey !== lastCaptureSourceKey) {
+            lastCaptureSourceKey = sourceKey
+            logger.info(`Screenshot source changed: native screen capture "${frame.monitorName}" (${frame.width}x${frame.height}, scale=${frame.scaleFactor})`)
+        }
+
+        const image: RawFrame = {
+            buffer: frame.buffer,
+            width: frame.width,
+            height: frame.height,
+            channels: 4,
+        }
+        const pngBuffer = output === 'png'
+            ? await sharp(frame.buffer, { raw: { width: frame.width, height: frame.height, channels: 4 } })
+                .png()
+                .toBuffer()
+            : null
+
+        logger.debug(`Screenshot captured: mode=native-screen, size=${frame.width}x${frame.height}, captureMs=${frame.captureMs.toFixed(1)}`)
+
+        return {
+            success: true,
+            buffer: pngBuffer,
+            image: output === 'raw' ? image : null,
+            timestamp,
+            hasLolWindow: false,
+            captureMode: 'native-screen',
+            captureSource: 'native',
+            width: frame.width,
+            height: frame.height,
+            captureMs: frame.captureMs,
+        }
+    } catch (error) {
+        nativeCaptureConsecutiveFailures++
+        const message = error instanceof Error ? error.message : String(error)
+        if (nativeCaptureConsecutiveFailures >= NATIVE_CAPTURE_MAX_CONSECUTIVE_FAILURES) {
+            logger.warn(`Native screen capture failed ${nativeCaptureConsecutiveFailures} times; falling back to desktopCapturer for this session: ${message}`)
+        } else {
+            logger.warn(`Native screen capture failed, retrying with desktopCapturer: ${message}`)
+        }
+        return null
+    }
+}
+
+export const captureScreenshot = async (options: CaptureScreenshotOptions = {}): Promise<CaptureScreenshotResult> => {
     try {
         const {
             preferScreen = false,
             timeoutMs = DEFAULT_CAPTURE_TIMEOUT_MS,
             thumbnailSize = CAPTURE_THUMBNAIL_SIZE,
+            output = 'png',
         } = options || {}
         const timestamp = Date.now()
+
+        // 整屏抓取优先走原生模块：原生分辨率、几十毫秒一帧；失败再回退 desktopCapturer。
+        if (preferScreen && isNativeCaptureEnabled()) {
+            const nativeResult = await captureWithNative(output, timeoutMs, timestamp)
+            if (nativeResult) {
+                return nativeResult
+            }
+        }
         const sourceTypes: Array<'screen' | 'window'> = preferScreen
             ? ['screen']
             : ['window', 'screen']
@@ -231,9 +339,11 @@ export const captureScreenshot = async (options: CaptureScreenshotOptions = {}) 
         return {
             success: true,
             buffer: pngBuffer,
+            image: null,
             timestamp,
             hasLolWindow,
             captureMode,
+            captureSource: 'electron',
             windowName: gameWindow?.name,
             width: size.width,
             height: size.height

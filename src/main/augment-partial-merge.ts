@@ -1,6 +1,10 @@
+import { isTitleTextCompatibleWithNames } from './augment-title-matcher.ts'
+
 export type PartialAugment = {
     id?: string | number | null
     name?: string
+    displayName?: string
+    matchName?: string
     rarity?: string
     confidence?: number | null
     detectedSlot?: number
@@ -117,6 +121,9 @@ export function createInitialPartialAugmentSelection({
 }
 
 const TITLE_FINGERPRINT_CHANGE_THRESHOLD = 18
+// 16x8 指纹分不开两个同长度的标题（"收缩射线" vs "缩小引擎"），
+// 所以当 OCR 文字明显是另一个名字时，只要指纹有轻微变化就视为卡位已刷新。
+const TITLE_FINGERPRINT_TEXT_ASSISTED_THRESHOLD = 4
 const HEX_BIT_COUNTS = new Map([
     ['0', 0], ['1', 1], ['2', 1], ['3', 2],
     ['4', 1], ['5', 2], ['6', 2], ['7', 3],
@@ -147,6 +154,23 @@ function hasTitleFingerprintChanged(
     return distance != null && distance >= TITLE_FINGERPRINT_CHANGE_THRESHOLD
 }
 
+function hasTitleTextReplacedAugment(
+    diagnostic: AugmentSlotDiagnostic,
+    previousAugment: PartialAugment,
+    previousFingerprint: unknown
+): boolean {
+    const distance = getFingerprintHammingDistance(diagnostic.titleFingerprint, previousFingerprint)
+    if (distance == null || distance < TITLE_FINGERPRINT_TEXT_ASSISTED_THRESHOLD) {
+        return false
+    }
+
+    return !isTitleTextCompatibleWithNames(diagnostic.text, [
+        previousAugment.name,
+        previousAugment.displayName,
+        previousAugment.matchName,
+    ])
+}
+
 function getChangedUnmatchedSlots({
     slotDiagnostics = [],
     lastDetectedAugments = [],
@@ -164,10 +188,14 @@ function getChangedUnmatchedSlots({
         }
 
         const previousAugment = lastDetectedAugments[slot]
+        const previousFingerprint = lastDetectedSlotFingerprints[slot]
         const changed = previousAugment?.id != null &&
                 diagnostic.matchedId == null &&
                 hasMeaningfulSlotText(diagnostic.text) &&
-                hasTitleFingerprintChanged(diagnostic.titleFingerprint, lastDetectedSlotFingerprints[slot])
+                (
+                    hasTitleFingerprintChanged(diagnostic.titleFingerprint, previousFingerprint) ||
+                    hasTitleTextReplacedAugment(diagnostic, previousAugment, previousFingerprint)
+                )
         return changed ? [slot] : []
     })
 }
