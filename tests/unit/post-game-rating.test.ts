@@ -22,11 +22,11 @@ describe('post-game horse honors', () => {
       player('enemy2', 'CHAOS', { kills: 5, deaths: 4, assists: 12, damageDealtToChampions: 20000, damageTaken: 22000 }),
     ])
 
-    expect(ratings.get('carry')?.honors).toEqual(['leader', 'kills'])
+    expect(ratings.get('carry')?.honors).toEqual(['leader', 'top', 'kills'])
     expect(ratings.get('carry')?.score).toBeGreaterThan(ratings.get('tank')!.score)
     expect(ratings.get('tank')?.honors).toEqual(['tank', 'assists'])
     expect(ratings.get('feeder')?.honors).toEqual(['deaths'])
-    expect(ratings.get('enemy')?.honors).toEqual(['leader', 'tank', 'kills', 'deaths'])
+    expect(ratings.get('enemy')?.honors).toEqual(['leader', 'top', 'tank', 'kills', 'deaths'])
     expect(ratings.get('enemy2')?.honors).toEqual(['assists'])
     expect(ratings.get('carry')?.playerCount).toBe(5)
   })

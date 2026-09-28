@@ -576,6 +576,7 @@ function drawDamageCompare(ctx, top, players, images) {
 
 const HORSE_HONOR_PART_KEYS = {
   leader: 'postGame.horsePartLeader',
+  top: 'postGame.horsePartTop',
   tank: 'postGame.horsePartTank',
   kills: 'postGame.horsePartKills',
   assists: 'postGame.horsePartAssists',
@@ -584,6 +585,7 @@ const HORSE_HONOR_PART_KEYS = {
 
 const HORSE_HONOR_REASON_KEYS = {
   leader: 'postGame.horseReasonLeader',
+  top: 'postGame.horseReasonTop',
   tank: 'postGame.horseReasonTank',
   kills: 'postGame.horseReasonKills',
   assists: 'postGame.horseReasonAssists',
@@ -615,7 +617,7 @@ function getHorseTitleReason(rating) {
       const bonus = Number(rating.itemBonus || 0) > 0 ? t('postGame.horseLeaderBonus') : ''
       return t(HORSE_HONOR_REASON_KEYS[honor], { value: Number(value || 0).toFixed(1), bonus })
     }
-    const formatted = honor === 'tank'
+    const formatted = honor === 'top' || honor === 'tank'
       ? formatLargeNumber(value)
       : String(Math.round(Number(value) || 0))
     return t(HORSE_HONOR_REASON_KEYS[honor], { value: formatted })
