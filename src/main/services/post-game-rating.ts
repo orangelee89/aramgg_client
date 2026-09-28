@@ -4,11 +4,12 @@
  * - 领头（leader）：MVP 综合评分队内最高。输出、KDA、参团、承伤、团队治疗护盾、控制六项按队内最大值归一化后加权；
  *   对面有治疗/护盾型英雄时，出了重伤/破盾装备的人按乘法加成（每件 +6%，上限 +12%），
  *   乘法保证基础分低的人靠出装拿不到领头。
- * - 上等（top）：输出最高；陀螺（tank）：承伤最多；K头（kills）：人头最多；仁慈（assists）：助攻最多；死（deaths）：死亡最多。
+ * - 悍（top）：输出最高；陀螺（tank）：承伤最多；K头（kills）：人头最多；仁慈（assists）：助攻最多；
+ *   血泵（heal）：总治疗量（含自己）最高；胶黏（control）：对敌方控制时长最长；死（deaths）：死亡最多。
  * - 一项都不沾的是"普通马"。并列最高时都算。
  */
 
-export type HorseHonor = 'leader' | 'top' | 'tank' | 'kills' | 'assists' | 'deaths'
+export type HorseHonor = 'leader' | 'top' | 'tank' | 'kills' | 'assists' | 'heal' | 'control' | 'deaths'
 
 export type RatingStatBlock = {
   kills?: number | null
@@ -20,6 +21,7 @@ export type RatingStatBlock = {
   timeCCingOthers?: number | null
   healsOnTeammates?: number | null
   shieldsOnTeammates?: number | null
+  totalHeal?: number | null
 }
 
 export type RatingPlayerInput = {
@@ -140,6 +142,8 @@ const HONOR_STATS: Array<{ honor: Exclude<HorseHonor, 'leader'>; stat: keyof Rat
   { honor: 'tank', stat: 'damageTaken' },
   { honor: 'kills', stat: 'kills' },
   { honor: 'assists', stat: 'assists' },
+  { honor: 'heal', stat: 'totalHeal' },
+  { honor: 'control', stat: 'timeCCingOthers' },
   { honor: 'deaths', stat: 'deaths' },
 ]
 

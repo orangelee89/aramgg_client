@@ -29,6 +29,8 @@ export type PostGameShareStatBlock = {
   timeCCingOthers: number | null
   healsOnTeammates: number | null
   shieldsOnTeammates: number | null
+  /** 总治疗量（含对自己的治疗）。 */
+  totalHeal: number | null
 }
 
 export type PostGameShareChampion = {
@@ -139,6 +141,7 @@ const statKeySets = {
   timeCCingOthers: new Set(['timeccingothers', 'totaltimeccingothers', 'timeccothers', 'totaltimeccdealt']),
   healsOnTeammates: new Set(['totalhealonteammates', 'totalhealsonteammates', 'healsonteammates', 'healonteammates']),
   shieldsOnTeammates: new Set(['totaldamageshieldedonteammates', 'damageshieldedonteammates', 'shieldsonteammates']),
+  totalHeal: new Set(['totalheal', 'totalhealing']),
 }
 
 const championIdKeys = new Set([
@@ -194,6 +197,7 @@ function createEmptyStats(): PostGameShareStatBlock {
     timeCCingOthers: null,
     healsOnTeammates: null,
     shieldsOnTeammates: null,
+    totalHeal: null,
   }
 }
 
@@ -465,6 +469,7 @@ function extractStats(value: unknown): PostGameShareStatBlock {
   stats.timeCCingOthers = readNumberByKeys(value, statKeySets.timeCCingOthers)
   stats.healsOnTeammates = readNumberByKeys(value, statKeySets.healsOnTeammates)
   stats.shieldsOnTeammates = readNumberByKeys(value, statKeySets.shieldsOnTeammates)
+  stats.totalHeal = readNumberByKeys(value, statKeySets.totalHeal)
 
   if (stats.kills != null && stats.deaths != null && stats.assists != null) {
     stats.kda = stats.deaths === 0
@@ -969,6 +974,7 @@ function mergeStats(existing: PostGameShareStatBlock, incoming?: PostGameShareSt
     timeCCingOthers: incoming.timeCCingOthers ?? existing.timeCCingOthers,
     healsOnTeammates: incoming.healsOnTeammates ?? existing.healsOnTeammates,
     shieldsOnTeammates: incoming.shieldsOnTeammates ?? existing.shieldsOnTeammates,
+    totalHeal: incoming.totalHeal ?? existing.totalHeal,
   }
 }
 
@@ -1653,6 +1659,7 @@ export async function createMockPostGameSharePosterData(): Promise<{
       timeCCingOthers: 20 + Math.floor(Math.random() * 60),
       healsOnTeammates: Math.floor(Math.random() * 8000),
       shieldsOnTeammates: Math.floor(Math.random() * 6000),
+      totalHeal: 6000 + Math.floor(Math.random() * 20000),
     }
     const mockPlayers: SnapshotPlayer[] = [{
       key: 'name:aramgg玩家',
@@ -1693,6 +1700,7 @@ export async function createMockPostGameSharePosterData(): Promise<{
           timeCCingOthers: 5 + Math.floor(Math.random() * 90),
           healsOnTeammates: Math.random() < 0.4 ? Math.floor(Math.random() * 15000) : 0,
           shieldsOnTeammates: Math.random() < 0.4 ? Math.floor(Math.random() * 10000) : 0,
+          totalHeal: 3000 + Math.floor(Math.random() * 25000),
         },
       })
     }

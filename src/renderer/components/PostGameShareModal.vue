@@ -582,6 +582,8 @@ const HORSE_HONOR_PART_KEYS = {
   tank: 'postGame.horsePartTank',
   kills: 'postGame.horsePartKills',
   assists: 'postGame.horsePartAssists',
+  heal: 'postGame.horsePartHeal',
+  control: 'postGame.horsePartControl',
   deaths: 'postGame.horsePartDeaths',
 }
 
@@ -591,6 +593,8 @@ const HORSE_HONOR_REASON_KEYS = {
   tank: 'postGame.horseReasonTank',
   kills: 'postGame.horseReasonKills',
   assists: 'postGame.horseReasonAssists',
+  heal: 'postGame.horseReasonHeal',
+  control: 'postGame.horseReasonControl',
   deaths: 'postGame.horseReasonDeaths',
 }
 
@@ -624,7 +628,7 @@ function getHorseTitleReasonLines(rating) {
       const bonus = Number(rating.itemBonus || 0) > 0 ? t('postGame.horseLeaderBonus') : ''
       reason = t(HORSE_HONOR_REASON_KEYS[honor], { value: Number(value || 0).toFixed(1), bonus })
     } else {
-      const formatted = honor === 'top' || honor === 'tank'
+      const formatted = honor === 'top' || honor === 'tank' || honor === 'heal'
         ? formatLargeNumber(value)
         : String(Math.round(Number(value) || 0))
       reason = t(HORSE_HONOR_REASON_KEYS[honor], { value: formatted })
