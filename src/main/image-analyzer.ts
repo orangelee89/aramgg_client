@@ -32,6 +32,9 @@ import {
 import logger from './modules/logger.ts'
 import { ensureOnnxruntimeNativeDllPath } from './modules/onnxruntime-native-path.ts'
 import { discoverLcuAuthFromProcess } from './services/lcu/process-auth-discovery.ts'
+// 马来西亚简中（Riot zh_MY）客户端的海克斯译名与国服 zh-CN 数据大面积不同（211 个里 170 个），
+// 站点数据只有 zh-CN / zh-TW / en-US，这里内置一份 zh_MY 名字表作为 OCR 别名。
+import zhMyOcrAliases from './data/augment-ocr-aliases.zh-MY.json' with { type: 'json' }
 
 sharp.concurrency(Number(process.env.ARAMGG_SHARP_CONCURRENCY) || 2)
 
@@ -372,6 +375,35 @@ async function loadAugmentOcrLocale(locale) {
     return request
 }
 
+const BUNDLED_OCR_ALIAS_SETS = [zhMyOcrAliases]
+let bundledOcrAliasesMerged = false
+
+/**
+ * 把内置的别名表（当前只有 zh_MY）并入 OCR 名字库。只补充 ocrNames，
+ * 不改变站点数据里的展示名和稀有度。
+ */
+export function mergeBundledOcrAliases(database, aliasSets = BUNDLED_OCR_ALIAS_SETS) {
+    let merged = 0
+    for (const aliasSet of aliasSets) {
+        const locale = String(aliasSet?.locale || '').trim()
+        const names = aliasSet?.names && typeof aliasSet.names === 'object' ? aliasSet.names : {}
+        if (!locale) {
+            continue
+        }
+
+        for (const [id, value] of Object.entries(names)) {
+            const aliasNames = Array.isArray(value) ? value : [value]
+            for (const name of aliasNames) {
+                if (mergeAugmentBaseRecord(database, { id, name: String(name || '') }, locale)) {
+                    merged++
+                }
+            }
+        }
+    }
+
+    return merged
+}
+
 /**
  * Loads only the OCR names needed for the current frame. Other supported
  * locales hydrate in the background and failures remain retryable.
@@ -390,6 +422,16 @@ async function initAugmentDatabase(preferredLocale = null) {
         .filter((locale, index, locales) => locales.indexOf(locale) === index)
 
     await Promise.all(foregroundLocales.map(locale => loadAugmentOcrLocale(locale)))
+
+    if (!bundledOcrAliasesMerged && loadedAugmentLocales.has(DEFAULT_DATA_LOCALE)) {
+        const mergedCount = mergeBundledOcrAliases(AUGMENT_DATABASE)
+        bundledOcrAliasesMerged = true
+        AUGMENT_MATCH_ENTRIES = null
+        logger.info('[augment-ocr] bundled OCR aliases merged', {
+            locales: BUNDLED_OCR_ALIAS_SETS.map(aliasSet => aliasSet?.locale || null),
+            mergedCount,
+        })
+    }
 
     const backgroundLocales = getSupportedOcrLocales().filter(
         locale => !foregroundLocales.includes(locale) && !loadedAugmentLocales.has(locale)
@@ -2498,6 +2540,7 @@ export const shutdownImageAnalyzer = async () => {
     await resetPaddleOcrService()
     AUGMENT_DATABASE = null
     AUGMENT_MATCH_ENTRIES = null
+    bundledOcrAliasesMerged = false
     loadedAugmentLocales.clear()
     augmentLocaleLoadPromises.clear()
     augmentLocaleRetryAfter.clear()

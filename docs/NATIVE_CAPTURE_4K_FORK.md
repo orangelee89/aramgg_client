@@ -26,6 +26,20 @@
 - OCR 夹具（`npm run test:augment-ocr`）：新增 `3840x2160-raw` 变体，三卡样本 579 ms 全对，门控 41～47 ms。
 - DirectML：会话可建立、结果一致，但首帧要约 2.8 s 编译内核，之后 224～418 ms，对比 CPU 245～507 ms 优势不大，因此默认仍为 CPU。
 
+## 第二个根因：Riot zh_MY 译名与站点 zh-CN 数据不一致
+
+本机 Riot 客户端语言是 `zh_MY`（马来西亚简中），`/riotclient/region-locale` 返回 `zh_MY`。
+对照 Community Dragon `zh_my/v1/cherry-augments.json`，站点 16.19.1 数据里的 211 个海克斯有 **170 个** 译名不同
+（"此路不通"=国服"不动如山"，"广域武器"="更万用的瞄准镜"，"收缩射线"="缩小射线"，"火焰烙印"="火上浇油"，
+"无尽毁灭风暴"="无尽大杀四方"……）。4K 抓帧后 OCR 已能逐字读对标题，但名字库里没有这些字，`matchedCount=0`。
+
+- `src/main/data/augment-ocr-aliases.zh-MY.json`：按 augment id 内置 zh_MY 名字（cdragon 16.19），另附本机客户端实际显示过的变体。
+- `image-analyzer.ts` 在默认语言名字库加载后并入这份别名（`mergeBundledOcrAliases`），只补 `ocrNames`，展示名和稀有度仍用站点数据。
+- 匹配到后 `name` 为屏幕上的 zh_MY 名字，`displayName` 为站点 zh-CN 名字，胜率按 id 查询不受影响。
+
+刷新 cdragon 名字表：拉取 `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/zh_my/v1/cherry-augments.json`，
+按站点 `augments.json` 的 id 取 `nameTRA` 重新生成该 JSON。
+
 ## 开关
 
 - `ARAMGG_DISABLE_NATIVE_CAPTURE=1`：关闭原生抓帧，恢复上游行为。

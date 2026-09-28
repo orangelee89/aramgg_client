@@ -59,6 +59,41 @@ describe('ocr input scaling and execution providers', () => {
     expect(resolveTitleRegionScale(0)).toBe(3)
   })
 
+  it('matches Riot zh_MY augment titles through the bundled alias table', async () => {
+    vi.doMock('../../src/main/data-loader.ts', () => ({
+      DEFAULT_DATA_LOCALE: 'zh-CN',
+      SUPPORTED_DATA_LOCALES: [{ code: 'zh-CN' }],
+      getDataLocale: () => 'zh-CN',
+      loadAugmentBaseForOcrLocale: vi.fn(async (locale: string) => ({
+        locale,
+        dataVersion: 'test',
+        source: 'bundled',
+        augments: [
+          { id: 2091, name: '无尽大杀四方', rarity: 'kGold', iconPath: '' },
+          { id: 1149, name: '不动如山', rarity: 'kSilver', iconPath: '' },
+          { id: 1071, name: '更万用的瞄准镜', rarity: 'kSilver', iconPath: '' },
+        ],
+      })),
+      tryNormalizeDataLocale: () => null,
+    }))
+    vi.doMock('../../src/main/services/lcu/process-auth-discovery.ts', () => ({
+      discoverLcuAuthFromProcess: vi.fn(async () => [null, null]),
+    }))
+    const { matchAugmentDatabase, shutdownImageAnalyzer } = await import('../../src/main/image-analyzer.ts')
+
+    const storm = await matchAugmentDatabase('无尽毁灭风暴 伤害')
+    const wall = await matchAugmentDatabase('此路不通 辅助 坚韧')
+    const scope = await matchAugmentDatabase('广域武器 一般')
+    const mainland = await matchAugmentDatabase('不动如山')
+
+    expect(storm.map(item => String(item.id))).toEqual(['2091'])
+    expect(storm[0].displayName).toBe('无尽大杀四方')
+    expect(wall.map(item => String(item.id))).toEqual(['1149'])
+    expect(scope.map(item => String(item.id))).toEqual(['1071'])
+    expect(mainland.map(item => String(item.id))).toEqual(['1149'])
+    await shutdownImageAnalyzer()
+  })
+
   it('reads execution providers from the environment', async () => {
     const { resolveOcrExecutionProviders } = await loadAnalyzer()
 
