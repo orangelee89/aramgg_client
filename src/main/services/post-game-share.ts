@@ -1,5 +1,8 @@
 import { net } from 'electron'
+import fs from 'fs-extra'
+import path from 'path'
 import logger from '../modules/logger.ts'
+import { getAppDataDir } from '../modules/app-paths.ts'
 import store from '../modules/app-store.ts'
 import type LCUService from './lcu/lcu-service.ts'
 import {
@@ -839,7 +842,7 @@ export async function collectPosterPlayers(
     const existing = playersByKey.get(key)
     if (existing) {
       existing.isSelf = existing.isSelf || isSelf
-      existing.stats = mergeStats(existing.stats, stats)
+      existing.stats = mergePlayerStats(existing.stats, stats)
       if (!existing.team && team) {
         existing.team = team
       }
@@ -896,12 +899,29 @@ function mergePlayers(existing: SnapshotPlayer[], incoming?: SnapshotPlayer[]): 
         ...player,
         isSelf: previous.isSelf || player.isSelf,
         champion: mergeChampion(previous.champion, player.champion),
-        stats: mergeStats(previous.stats, player.stats),
+        stats: mergePlayerStats(previous.stats, player.stats),
       }
       : player)
   })
 
   return [...merged.values()]
+}
+
+/**
+ * 同一个玩家多条记录合并：有效的非零值优先，避免某条只带占位 0 的记录把真实数据盖掉。
+ */
+function mergePlayerStats(existing: PostGameShareStatBlock, incoming?: PostGameShareStatBlock): PostGameShareStatBlock {
+  if (!incoming) {
+    return existing
+  }
+
+  const merged = createEmptyStats()
+  for (const key of Object.keys(merged) as Array<keyof PostGameShareStatBlock>) {
+    const next = incoming[key]
+    const previous = existing[key]
+    merged[key] = next != null && next !== 0 ? next : (previous ?? next ?? null)
+  }
+  return merged
 }
 
 function mergeStats(existing: PostGameShareStatBlock, incoming?: PostGameShareStatBlock): PostGameShareStatBlock {
@@ -1373,6 +1393,31 @@ function logEndOfGameStatKeys(endpoint: string, payload: unknown, update: Snapsh
   }
 }
 
+const EOG_DUMP_DIR_NAME = 'post-game'
+const EOG_DUMP_KEEP = 3
+
+/**
+ * 把赛后原始数据块存到数据目录（只保留最近几份），用于排查玩家数据解析问题。
+ */
+async function dumpEndOfGamePayload(endpoint: string, payload: unknown): Promise<void> {
+  try {
+    const dir = path.join(getAppDataDir(), EOG_DUMP_DIR_NAME)
+    await fs.ensureDir(dir)
+    const safeEndpoint = endpoint.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '')
+    const filePath = path.join(dir, `eog-${Date.now()}-${safeEndpoint}.json`)
+    await fs.writeFile(filePath, JSON.stringify(payload, null, 2), 'utf8')
+
+    const files = (await fs.readdir(dir))
+      .filter((name) => name.startsWith('eog-') && name.endsWith('.json'))
+      .sort()
+    const stale = files.slice(0, Math.max(0, files.length - EOG_DUMP_KEEP))
+    await Promise.all(stale.map((name) => fs.remove(path.join(dir, name))))
+    logger.debug('[post-game-share] end-of-game payload saved', { filePath })
+  } catch (error) {
+    logger.debug('[post-game-share] failed to save end-of-game payload:', (error as Error).message)
+  }
+}
+
 async function captureEndOfGameStats(lcuService: LCUService, reason: string): Promise<void> {
   const endpoints = [
     '/lol-end-of-game/v1/eog-stats-block',
@@ -1391,6 +1436,7 @@ async function captureEndOfGameStats(lcuService: LCUService, reason: string): Pr
     })
     mergeSnapshot(update)
     logEndOfGameStatKeys(endpoint, result.data, update)
+    void dumpEndOfGamePayload(endpoint, result.data)
 
     if (hasAnyStats(update.stats || createEmptyStats())) {
       return
@@ -1412,6 +1458,16 @@ export async function preparePostGameSharePosterData(
       await captureEndOfGameStats(lcuService, reason)
       latestPosterData = await buildPosterData(reason, true)
       logger.info('[post-game-share] poster data prepared', {
+        players: latestPosterData.players.map((player) => ({
+          key: player.key,
+          team: player.team,
+          isSelf: player.isSelf,
+          championId: player.champion.id,
+          hasIcon: Boolean(player.champion.imageDataUrl),
+          dealt: player.stats.damageDealtToChampions,
+          taken: player.stats.damageTaken,
+          honors: player.rating?.honors ?? null,
+        })),
         status: latestPosterData.status,
         championId: latestPosterData.champion.id,
         augmentIds: latestPosterData.augments.map((augment) => augment.id),
