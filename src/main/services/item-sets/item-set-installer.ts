@@ -65,6 +65,7 @@ const MAX_FULL_BUILD_SEQUENCES = 3
 const MAX_LATER_ITEMS = 12
 const MAX_SITUATIONAL_ITEMS = 12
 const ITEM_SET_SORT_RANK = 100
+const ITEM_SET_TITLE = 'ARAMGG助手'
 
 function getChampionId(champion: ChampionLike): number {
   return Number(champion.championId ?? champion.id ?? 0)
@@ -347,10 +348,10 @@ function createItemSet(
     return null
   }
 
-  // 商店里的出装页标签宽度有限，标题只保留来源和定位；英雄和版本信息在页内块标题里已经足够。
   // sortrank 高的排在前面，OP.GG 桌面端写的页是 1，这里用 100 保证 ARAMGG 页默认选中。
+  // 标题由 createItemSets 统一写成"ARAMGG助手"，这里先放定位作为占位。
   return {
-    title: `ARAMGG ${buildTag}`,
+    title: buildTag,
     associatedMaps: [SUMMONERS_RIFT_MAP_ID, ARAM_MAP_ID],
     associatedChampions: [championId],
     blocks,
@@ -383,6 +384,10 @@ export function createItemSets(champion: ChampionLike, championName: ChampionLik
 
     const itemSet = createItemSet(champion, championName, build, index)
     if (itemSet) {
+      // 商店标签宽度有限，统一叫"ARAMGG助手"；同一英雄多套出装时从第二套起加序号区分。
+      itemSet.title = itemSets.length === 0
+        ? ITEM_SET_TITLE
+        : `${ITEM_SET_TITLE} ${itemSets.length + 1}`
       itemSets.push(itemSet)
     } else {
       skippedBuilds.push({ title, reason: 'missing-build-blocks' })

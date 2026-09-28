@@ -41,8 +41,9 @@ describe('ARAM item set builder', () => {
     expect(result.totalBuilds).toBe(2)
     expect(result.skippedBuilds).toEqual([])
     expect(result.itemSets).toHaveLength(2)
-    expect(result.itemSets[0].title).toContain('AP')
-    expect(result.itemSets[1].title).toContain('Burn')
+    expect(result.itemSets[0].title).toBe('ARAMGG助手')
+    expect(result.itemSets[1].title).toBe('ARAMGG助手 2')
+    expect(result.itemSets[0].sortrank).toBe(100)
     expect(result.itemSets[0].blocks.map(block => block.type)).toEqual([
       '出门装 1（160场 胜率52.0%）',
       '核心 1（500场 胜率55.0%）',
