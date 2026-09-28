@@ -1450,28 +1450,48 @@ async function dumpEndOfGamePayload(endpoint: string, payload: unknown): Promise
   }
 }
 
+const EOG_CAPTURE_ATTEMPTS = 6
+const EOG_CAPTURE_RETRY_DELAY_MS = 1500
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+/**
+ * 赛后数据块在 WaitingForStats 阶段经常还没就绪（404），隔 1.5 秒重试几次，
+ * 拿到带战绩的数据就停。
+ */
 async function captureEndOfGameStats(lcuService: LCUService, reason: string): Promise<void> {
   const endpoints = [
     '/lol-end-of-game/v1/eog-stats-block',
     '/lol-end-of-game/v1/gameclient-eog-stats-block',
   ]
 
-  for (const endpoint of endpoints) {
-    const result = await lcuService.getReadOnlyJsonEndpoint(endpoint)
-    if (!result || result.status < 200 || result.status >= 300 || !result.data) {
-      continue
+  for (let attempt = 1; attempt <= EOG_CAPTURE_ATTEMPTS; attempt += 1) {
+    for (const endpoint of endpoints) {
+      const result = await lcuService.getReadOnlyJsonEndpoint(endpoint)
+      if (!result || result.status < 200 || result.status >= 300 || !result.data) {
+        continue
+      }
+
+      const update = await buildSnapshotUpdateFromPayload({
+        payload: result.data,
+        source: `eog:${endpoint}:${reason}`,
+      })
+      mergeSnapshot(update)
+      logEndOfGameStatKeys(endpoint, result.data, update)
+      void dumpEndOfGamePayload(endpoint, result.data)
+
+      if (hasAnyStats(update.stats || createEmptyStats())) {
+        return
+      }
     }
 
-    const update = await buildSnapshotUpdateFromPayload({
-      payload: result.data,
-      source: `eog:${endpoint}:${reason}`,
-    })
-    mergeSnapshot(update)
-    logEndOfGameStatKeys(endpoint, result.data, update)
-    void dumpEndOfGamePayload(endpoint, result.data)
-
-    if (hasAnyStats(update.stats || createEmptyStats())) {
-      return
+    if (attempt < EOG_CAPTURE_ATTEMPTS) {
+      logger.debug('[post-game-share] end-of-game stats not ready, retrying', { reason, attempt })
+      await wait(EOG_CAPTURE_RETRY_DELAY_MS)
     }
   }
 }

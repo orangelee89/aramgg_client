@@ -124,7 +124,9 @@ let toastTimer = null
 // 伤害对比：勾选本局其他玩家后，海报在经济/KDA 下方插入输出/承伤柱状图；
 // "固定"的玩家名存到 postGameShare.comparePlayers，以后同一个人在局里就自动勾上。
 const COMPARE_STORE_KEY = 'postGameShare.comparePlayers'
-const TITLE_PANEL_HEIGHT = 162
+// 称号面板：标题 + 鎏金称号占 118px，之后每个殊荣一行描述。
+const TITLE_PANEL_BASE_HEIGHT = 118
+const TITLE_PANEL_LINE_HEIGHT = 24
 const TITLE_PANEL_GAP = 22
 const CHART_TOP = 774
 const CHART_HEADER_HEIGHT = 54
@@ -180,7 +182,7 @@ const chartHeight = computed(() =>
     ? CHART_HEADER_HEIGHT + chartPlayers.value.length * CHART_ROW_HEIGHT + CHART_BOTTOM_PADDING
     : 0
 )
-const titleShift = computed(() => props.poster?.rating ? TITLE_PANEL_HEIGHT + TITLE_PANEL_GAP : 0)
+const titleShift = computed(() => props.poster?.rating ? getHorseTitlePanelHeight(props.poster.rating) + TITLE_PANEL_GAP : 0)
 const chartShift = computed(() => chartHeight.value > 0 ? chartHeight.value + CHART_SECTION_GAP : 0)
 const layoutShift = computed(() => titleShift.value + chartShift.value)
 const posterHeight = computed(() => POSTER_HEIGHT + layoutShift.value)
@@ -608,20 +610,32 @@ function getHorseTitleLabel(rating) {
   return t('postGame.horseName', { parts: parts.join(t('postGame.horsePartJoiner')) })
 }
 
-function getHorseTitleReason(rating) {
+/**
+ * 每个殊荣一行描述，如"领头马：MVP 本局综合评分最高 8.7"；普通马一行说明。
+ */
+function getHorseTitleReasonLines(rating) {
   const honors = getHorseHonors(rating)
-  if (!honors.length) return t('postGame.horseReasonNormal')
+  if (!honors.length) return [t('postGame.horseReasonNormal')]
   return honors.map((honor) => {
     const value = rating.honorValues?.[honor]
+    const name = t('postGame.horseName', { parts: t(HORSE_HONOR_PART_KEYS[honor]) })
+    let reason
     if (honor === 'leader') {
       const bonus = Number(rating.itemBonus || 0) > 0 ? t('postGame.horseLeaderBonus') : ''
-      return t(HORSE_HONOR_REASON_KEYS[honor], { value: Number(value || 0).toFixed(1), bonus })
+      reason = t(HORSE_HONOR_REASON_KEYS[honor], { value: Number(value || 0).toFixed(1), bonus })
+    } else {
+      const formatted = honor === 'top' || honor === 'tank'
+        ? formatLargeNumber(value)
+        : String(Math.round(Number(value) || 0))
+      reason = t(HORSE_HONOR_REASON_KEYS[honor], { value: formatted })
     }
-    const formatted = honor === 'top' || honor === 'tank'
-      ? formatLargeNumber(value)
-      : String(Math.round(Number(value) || 0))
-    return t(HORSE_HONOR_REASON_KEYS[honor], { value: formatted })
-  }).join(' · ')
+    return t('postGame.horseReasonLine', { name, reason })
+  })
+}
+
+function getHorseTitlePanelHeight(rating) {
+  if (!rating) return 0
+  return TITLE_PANEL_BASE_HEIGHT + getHorseTitleReasonLines(rating).length * TITLE_PANEL_LINE_HEIGHT
 }
 
 /**
@@ -672,7 +686,7 @@ function drawGoldenText(ctx, text, x, y, options = {}) {
 function drawHorseTitlePanel(ctx, rating, top) {
   const x = 52
   const width = 646
-  const height = TITLE_PANEL_HEIGHT
+  const height = getHorseTitlePanelHeight(rating)
   const label = getHorseTitleLabel(rating)
   if (!label) return
 
@@ -685,11 +699,13 @@ function drawHorseTitlePanel(ctx, rating, top) {
   })
   const labelSize = label.length > 6 ? 40 : 50
   drawGoldenText(ctx, label, x + 32, top + 98, { size: labelSize, align: 'left', maxWidth: width - 64 })
-  drawText(ctx, getHorseTitleReason(rating), x + 32, top + 136, {
-    size: 18,
-    weight: 700,
-    color: 'rgba(246, 236, 210, 0.78)',
-    maxWidth: width - 64,
+  getHorseTitleReasonLines(rating).forEach((line, index) => {
+    drawText(ctx, line, x + 32, top + 134 + index * TITLE_PANEL_LINE_HEIGHT, {
+      size: 17,
+      weight: 700,
+      color: 'rgba(246, 236, 210, 0.78)',
+      maxWidth: width - 64,
+    })
   })
 }
 
