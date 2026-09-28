@@ -41,8 +41,8 @@ describe('ARAM item set builder', () => {
     expect(result.totalBuilds).toBe(2)
     expect(result.skippedBuilds).toEqual([])
     expect(result.itemSets).toHaveLength(2)
-    expect(result.itemSets[0].title).toBe('ARAMGG助手')
-    expect(result.itemSets[1].title).toBe('ARAMGG助手 2')
+    expect(result.itemSets[0].title).toBe('AP')
+    expect(result.itemSets[1].title).toBe('Burn')
     expect(result.itemSets[0].sortrank).toBe(100)
     expect(result.itemSets[0].blocks.map(block => block.type)).toEqual([
       '出门装 1（160场 胜率52.0%）',
@@ -99,6 +99,19 @@ describe('ARAM item set builder', () => {
     expect(itemsOf(5)).toEqual(['3053', '3143', '3748'])
     // 备选装备按区分度排序
     expect(itemsOf(6)).toEqual(['3143', '3053', '3047'])
+  })
+
+  it('numbers item sets that share the same route name', () => {
+    const result = createItemSets(
+      { championId: 1, alias: 'Annie' },
+      null,
+      [
+        { tags: { style: 'AD, Bruiser' }, games: 1000, coreItems: [{ itemIds: [3084, 3111, 6631], games: 500 }] },
+        { tags: { style: 'AD, Bruiser' }, games: 900, coreItems: [{ itemIds: [3748, 3111, 6631], games: 400 }] },
+      ]
+    )
+
+    expect(result.itemSets.map(itemSet => itemSet.title)).toEqual(['AD / Bruiser', 'AD / Bruiser 2'])
   })
 
   it('also accepts a raw builds array', () => {

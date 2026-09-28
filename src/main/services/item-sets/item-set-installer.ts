@@ -65,7 +65,6 @@ const MAX_FULL_BUILD_SEQUENCES = 3
 const MAX_LATER_ITEMS = 12
 const MAX_SITUATIONAL_ITEMS = 12
 const ITEM_SET_SORT_RANK = 100
-const ITEM_SET_TITLE = 'ARAMGG助手'
 
 function getChampionId(champion: ChampionLike): number {
   return Number(champion.championId ?? champion.id ?? 0)
@@ -164,7 +163,7 @@ function getBuildTags(build: any): string[] {
 function getBuildTitleTag(build: any, index: number): string {
   const tags = getBuildTags(build)
   if (tags.length) {
-    return tags.join(', ')
+    return tags.join(' / ')
   }
 
   return build?.tier || build?.role || `Build ${index + 1}`
@@ -349,7 +348,6 @@ function createItemSet(
   }
 
   // sortrank 高的排在前面，OP.GG 桌面端写的页是 1，这里用 100 保证 ARAMGG 页默认选中。
-  // 标题由 createItemSets 统一写成"ARAMGG助手"，这里先放定位作为占位。
   return {
     title: buildTag,
     associatedMaps: [SUMMONERS_RIFT_MAP_ID, ARAM_MAP_ID],
@@ -384,10 +382,9 @@ export function createItemSets(champion: ChampionLike, championName: ChampionLik
 
     const itemSet = createItemSet(champion, championName, build, index)
     if (itemSet) {
-      // 商店标签宽度有限，统一叫"ARAMGG助手"；同一英雄多套出装时从第二套起加序号区分。
-      itemSet.title = itemSets.length === 0
-        ? ITEM_SET_TITLE
-        : `${ITEM_SET_TITLE} ${itemSets.length + 1}`
+      // 标签直接用出装路线名（与英雄详情页一致，如 "Tank"、"AD / Bruiser"）；重名时加序号。
+      const duplicates = itemSets.filter((existing) => existing.title === title || existing.title.startsWith(`${title} `)).length
+      itemSet.title = duplicates === 0 ? title : `${title} ${duplicates + 1}`
       itemSets.push(itemSet)
     } else {
       skippedBuilds.push({ title, reason: 'missing-build-blocks' })
