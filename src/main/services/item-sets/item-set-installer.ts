@@ -30,6 +30,8 @@ type BuildRecord = {
   pickRate?: number
   games?: number
   averageIndex?: number
+  distinctiveScore?: number
+  distinctive_score?: number
 }
 
 type ChampionInstallResult = {
@@ -55,6 +57,13 @@ const MIN_RECOMMENDATION_GAMES = 2
 const MIN_BUILD_GAMES = 300
 const MIN_CORE_SEQUENCE_GAMES = 20
 const MAX_ITEM_SETS_PER_CHAMPION = 4
+// 写进 LoL 客户端的推荐页分区与英雄详情窗口（AugmentWinrateOverlay.vue）保持一致：
+// 出门装 ×2 → 核心 1～4（每组一套三件）→ 完整出装 ×3 → 后续装备 ×12 → 备选装备 ×12。
+const MAX_STARTING_SEQUENCES = 2
+const MAX_CORE_SEQUENCES = 4
+const MAX_FULL_BUILD_SEQUENCES = 3
+const MAX_LATER_ITEMS = 12
+const MAX_SITUATIONAL_ITEMS = 12
 
 function getChampionId(champion: ChampionLike): number {
   return Number(champion.championId ?? champion.id ?? 0)
@@ -217,31 +226,6 @@ function normalizePercent(value: unknown): number | null {
   return numberValue <= 1 ? numberValue * 100 : numberValue
 }
 
-function formatPercent(value: unknown): string | null {
-  const normalized = normalizePercent(value)
-  return normalized == null ? null : `${normalized.toFixed(2)}%`
-}
-
-function formatBlockStats(record: BuildRecord): string {
-  const parts = []
-  const pickRate = formatPercent(record.pickRate)
-  const winRate = formatPercent(record.winRate)
-
-  if (record.games) {
-    parts.push(`Games ${Math.round(record.games)}`)
-  }
-
-  if (pickRate) {
-    parts.push(`Pick ${pickRate}`)
-  }
-
-  if (winRate) {
-    parts.push(`Win ${winRate}`)
-  }
-
-  return parts.length ? `, ${parts.join(', ')}` : ''
-}
-
 function toBlockItems(itemIds: string[]) {
   return itemIds.map((id) => ({
     id,
@@ -249,6 +233,35 @@ function toBlockItems(itemIds: string[]) {
   }))
 }
 
+/**
+ * 块标题里的紧凑统计：`（631场 胜率54.0%）`；没有场次只有选取率时显示 `（选取16.1%）`。
+ */
+function formatCompactStats(record: { games?: number; pickRate?: number; winRate?: number } | null | undefined): string {
+  if (!record) {
+    return ''
+  }
+
+  const parts = []
+  const games = Number(record.games || 0)
+  const winRate = normalizePercent(record.winRate)
+  const pickRate = normalizePercent(record.pickRate)
+
+  if (games > 0) {
+    parts.push(`${Math.round(games)}场`)
+  } else if (pickRate) {
+    parts.push(`选取${pickRate.toFixed(1)}%`)
+  }
+
+  if (winRate) {
+    parts.push(`胜率${winRate.toFixed(1)}%`)
+  }
+
+  return parts.length ? `（${parts.join(' ')}）` : ''
+}
+
+/**
+ * 每条记录一块：`核心 1（631场 胜率54.0%）`，顺序与详情页一致（场次 → 选取率 → 胜率）。
+ */
 function createSequenceBlocks(records: BuildRecord[], label: string, limit: number) {
   return getTrustedRecords(records)
     .map((record) => ({
@@ -258,22 +271,39 @@ function createSequenceBlocks(records: BuildRecord[], label: string, limit: numb
     .filter(({ itemIds }) => itemIds.length > 0)
     .slice(0, limit)
     .map(({ record, itemIds }, index) => ({
-      type: `ARAMGG ${label} #${index + 1}${formatBlockStats(record)}`,
+      type: `${label} ${index + 1}${formatCompactStats(record)}`,
       items: toBlockItems(itemIds),
     }))
 }
 
-function createSingleItemBlock(
+function getDistinctiveScore(record: BuildRecord): number {
+  const score = Number(record?.distinctiveScore ?? record?.distinctive_score ?? record?.averageIndex ?? 0)
+  return Number.isFinite(score) ? score : 0
+}
+
+// 备选装备按"区分度"排序：这件装备相对该英雄常规出装有多特别，和详情页同一规则。
+function compareSituationalRecords(left: BuildRecord, right: BuildRecord): number {
+  const scoreDiff = getDistinctiveScore(right) - getDistinctiveScore(left)
+  return scoreDiff !== 0 ? scoreDiff : compareRecordsByConfidence(left, right)
+}
+
+/**
+ * 把记录里的所有装备摊平成单件（后续装备的 step 2 记录含两件），排序后去重，合成一块。
+ */
+function createFlattenedItemBlock(
   records: BuildRecord[],
-  label: string,
+  title: string,
   limit: number,
-  excludedItemIds: Set<string> = new Set()
+  compareRecords: (left: BuildRecord, right: BuildRecord) => number = compareRecordsByConfidence
 ) {
   const seen = new Set<string>()
-  const itemIds = getTrustedRecords(records)
-    .map((record) => normalizeItemIds(record)[0])
+  const itemIds = records
+    .filter(hasRecommendationEvidence)
+    .flatMap((record) => normalizeItemIds(record).map((itemId) => ({ ...record, itemId, itemIds: [itemId] })))
+    .sort(compareRecords)
+    .map((record) => record.itemId as string)
     .filter((itemId) => {
-      if (!itemId || seen.has(itemId) || excludedItemIds.has(itemId)) {
+      if (!itemId || seen.has(itemId)) {
         return false
       }
 
@@ -288,20 +318,10 @@ function createSingleItemBlock(
 
   return [
     {
-      type: `ARAMGG ${label}`,
+      type: title,
       items: toBlockItems(itemIds),
     },
   ]
-}
-
-function collectBlockedItemIds(records: BuildRecord[], limit: number): Set<string> {
-  const blocked = new Set<string>()
-  getTrustedRecords(records)
-    .slice(0, limit)
-    .forEach((record) => {
-      normalizeItemIds(record).forEach((itemId) => blocked.add(itemId))
-    })
-  return blocked
 }
 
 function createItemSet(
@@ -314,17 +334,16 @@ function createItemSet(
   const championLabel = getChampionLabel(champion, championName)
   const buildTag = getBuildTitleTag(build, index)
   const coreRecords = build?.coreItems || build?.recommended || []
-  const blockedSituationalItemIds = collectBlockedItemIds(coreRecords, 5)
   const blocks = [
-    ...createSequenceBlocks(build?.startingItems || [], 'Starter', 3),
-    ...createSequenceBlocks(coreRecords, 'Core', 5),
-    ...createSequenceBlocks(build?.fullItems || [], 'Full Build', 3),
-    ...createSingleItemBlock(build?.itemExtensions || [], 'Next Items', 12),
-    ...createSingleItemBlock(
+    ...createSequenceBlocks(build?.startingItems || [], '出门装', MAX_STARTING_SEQUENCES),
+    ...createSequenceBlocks(coreRecords, '核心', MAX_CORE_SEQUENCES),
+    ...createSequenceBlocks(build?.fullItems || [], '完整出装', MAX_FULL_BUILD_SEQUENCES),
+    ...createFlattenedItemBlock(build?.itemExtensions || [], '后续装备', MAX_LATER_ITEMS),
+    ...createFlattenedItemBlock(
       build?.situationalItems || [],
-      'Situational Items',
-      18,
-      blockedSituationalItemIds
+      '备选装备',
+      MAX_SITUATIONAL_ITEMS,
+      compareSituationalRecords
     ),
   ]
 
