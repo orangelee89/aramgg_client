@@ -112,6 +112,7 @@ export const electronAPI: ElectronAPI = {
     createMock: (...args) => requireElectronAPI().postGameShare.createMock(...args),
     copyImage: (...args) => requireElectronAPI().postGameShare.copyImage(...args),
     saveImage: (...args) => requireElectronAPI().postGameShare.saveImage(...args),
+    hideWindow: (...args) => requireElectronAPI().postGameShare.hideWindow(...args),
   },
   events: {
     on: (...args) => requireElectronAPI().events.on(...args),

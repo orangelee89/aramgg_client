@@ -23,8 +23,10 @@ import {
     getMainWindow,
     getPopupWindow,
     raiseOverlayWindow,
+    hidePostGamePosterWindow,
 } from './window-manager.ts'
 import logger from './logger.ts'
+import { showPostGamePosterPopup } from './post-game-poster-window.ts'
 import { markRendererReady } from './renderer-ready.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
@@ -814,7 +816,12 @@ export function registerIpcHandlers(isDev: boolean): void {
 
     ipcMain.handle('post-game-share-create-mock', async () => {
         try {
-            return await createMockPostGameSharePosterData()
+            const result = await createMockPostGameSharePosterData()
+            if (result?.success && result.data) {
+                // 主界面"模拟生成"也走小窗，方便预览右下角弹窗效果。
+                void showPostGamePosterPopup(result.data, 'mock', { force: true })
+            }
+            return result
         } catch (error) {
             logger.warn('[post-game-share] failed to create mock poster data:', getErrorMessage(error))
             return {
@@ -823,6 +830,11 @@ export function registerIpcHandlers(isDev: boolean): void {
                 error: getErrorMessage(error),
             }
         }
+    })
+
+    ipcMain.handle('post-game-poster-window-hide', () => {
+        hidePostGamePosterWindow()
+        return { success: true }
     })
 
     ipcMain.handle('post-game-share-copy-image', async (_event, dataUrl) => {

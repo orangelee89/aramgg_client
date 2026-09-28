@@ -10,6 +10,7 @@ export type AppStoreKey =
   | 'augments.showSidePanel'
   | 'postGameShare.autoShow'
   | 'postGameShare.comparePlayers'
+  | 'postGameShare.popupWindow'
 
 export type SupportedDataLocale = 'zh-CN' | 'zh-TW' | 'en-US'
 
@@ -463,6 +464,7 @@ export interface ElectronAPI {
     createMock(): Promise<OperationResult & { data?: LooseRecord }>
     copyImage(dataUrl: string): Promise<OperationResult>
     saveImage(dataUrl: string, suggestedFilename?: string): Promise<OperationResult>
+    hideWindow(): Promise<OperationResult>
   }
   events: {
     on<K extends ElectronEventChannel>(

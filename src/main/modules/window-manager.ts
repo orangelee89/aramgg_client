@@ -53,6 +53,9 @@ let popupWindow: BrowserWindow | null = null
 let popupGameflowPhase: GameflowPhase | null = null
 let floatingWindow: BrowserWindow | null = null
 let augmentSidePanelWindow: BrowserWindow | null = null
+let postGamePosterWindow: BrowserWindow | null = null
+let appQuitting = false
+let quitListenerRegistered = false
 let mainWindowCloseAllowed = false
 let rendererServerPromise: Promise<string> | null = null
 
@@ -61,6 +64,7 @@ const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
 const POPUP_WINDOW_POSITION_KEY = 'windows.championInsightPosition'
 const FLOATING_WINDOW_SIZE = { width: 760, height: 170 }
 const AUGMENT_SIDE_PANEL_WINDOW_SIZE = { width: 360, height: 640 }
+const POST_GAME_POSTER_WINDOW_SIZE = { width: 470, height: 960 }
 const OVERLAY_ALWAYS_ON_TOP_LEVEL = process.platform === 'win32' ? 'screen-saver' : 'floating'
 const MIME_TYPES: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
@@ -202,6 +206,51 @@ export function applyPopupWindowPreferences(phase: GameflowPhase | null = popupG
     if ((!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart())) &&
         popupWindow.isVisible()) {
         popupWindow.hide()
+    }
+}
+
+function getPostGamePosterBounds(): Rectangle {
+    const display = screen.getPrimaryDisplay()
+    const area = display.workArea || display.bounds
+    const width = Math.min(POST_GAME_POSTER_WINDOW_SIZE.width, area.width - 32)
+    const height = Math.min(POST_GAME_POSTER_WINDOW_SIZE.height, area.height - 32)
+
+    // 屏幕右下角，留 16px 边距。
+    return {
+        width,
+        height,
+        x: area.x + area.width - width - 16,
+        y: area.y + area.height - height - 16,
+    }
+}
+
+export function applyPostGamePosterWindowLayout(): void {
+    if (!postGamePosterWindow || postGamePosterWindow.isDestroyed()) {
+        return
+    }
+    postGamePosterWindow.setBounds(getPostGamePosterBounds())
+}
+
+/** 显示赛后海报小窗（不抢焦点、不呼出主窗口）。 */
+export function showPostGamePosterWindow(): void {
+    if (!postGamePosterWindow || postGamePosterWindow.isDestroyed()) {
+        return
+    }
+    applyPostGamePosterWindowLayout()
+    setOverlayAlwaysOnTop(postGamePosterWindow, true, 'post-game-poster')
+    if (postGamePosterWindow.isMinimized()) {
+        postGamePosterWindow.restore()
+    }
+    postGamePosterWindow.showInactive()
+    postGamePosterWindow.moveTop()
+}
+
+export function hidePostGamePosterWindow(): void {
+    if (!postGamePosterWindow || postGamePosterWindow.isDestroyed()) {
+        return
+    }
+    if (postGamePosterWindow.isVisible()) {
+        postGamePosterWindow.hide()
     }
 }
 
@@ -725,6 +774,63 @@ export const createFloatingWindow = async (
 }
 
 /**
+ * 赛后海报小窗：无边框、置顶、固定在屏幕右下角；关闭按钮只隐藏，下一局可复用。
+ */
+export const createPostGamePosterWindow = async (
+    isDev: boolean,
+    devServerUrl: string
+): Promise<BrowserWindow> => {
+    const webPreferences = getWebPreferences(isDev)
+    const bounds = getPostGamePosterBounds()
+
+    if (!quitListenerRegistered && typeof app.on === 'function') {
+        quitListenerRegistered = true
+        app.on('before-quit', () => {
+            appQuitting = true
+        })
+    }
+
+    postGamePosterWindow = new BrowserWindow({
+        show: false,
+        frame: false,
+        transparent: true,
+        skipTaskbar: true,
+        resizable: false,
+        minimizable: false,
+        fullscreenable: false,
+        alwaysOnTop: true,
+        ...bounds,
+        webPreferences,
+    })
+    setOverlayAlwaysOnTop(postGamePosterWindow, true, 'post-game-poster')
+    attachWindowDiagnostics('post-game-poster', postGamePosterWindow)
+
+    postGamePosterWindow.on('close', (event: Event) => {
+        if (!appQuitting) {
+            event.preventDefault()
+            postGamePosterWindow?.hide()
+        }
+    })
+    postGamePosterWindow.on('closed', () => {
+        logger.info('Post-game poster window closed')
+        postGamePosterWindow = null
+    })
+
+    await loadRendererRoute(postGamePosterWindow, 'post-game-poster', isDev, devServerUrl, '/post-game-poster', webPreferences.preload)
+
+    if (isDev && OPEN_OVERLAY_DEVTOOLS) {
+        postGamePosterWindow.webContents.openDevTools({ mode: 'detach' })
+    }
+
+    logger.info('赛后海报小窗已创建', {
+        ...bounds,
+        url: postGamePosterWindow.webContents.getURL(),
+    })
+
+    return postGamePosterWindow
+}
+
+/**
  * 获取主窗口实例
  */
 export const getMainWindow = () => mainWindow
@@ -740,6 +846,8 @@ export const getPopupWindow = () => popupWindow
 export const getFloatingWindow = () => floatingWindow
 
 export const getAugmentSidePanelWindow = () => augmentSidePanelWindow
+
+export const getPostGamePosterWindow = () => postGamePosterWindow
 
 function getRendererRuntime(): [boolean, string] {
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -757,6 +865,10 @@ export const ensureFloatingWindow = createWindowLoader(
 export const ensureAugmentSidePanelWindow = createWindowLoader(
     getAugmentSidePanelWindow,
     () => createAugmentSidePanelWindow(...getRendererRuntime()),
+)
+export const ensurePostGamePosterWindow = createWindowLoader(
+    getPostGamePosterWindow,
+    () => createPostGamePosterWindow(...getRendererRuntime()),
 )
 
 export function ensureAugmentOverlayWindows(): Promise<[BrowserWindow | null, BrowserWindow | null]> {

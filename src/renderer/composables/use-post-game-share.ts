@@ -54,6 +54,8 @@ export function usePostGameShare(statusSink: Ref<StatusMessage | null>) {
   const postGamePoster = ref<PostGamePoster | null>(null)
   const postGameShareLoading = ref(false)
   const postGameShareAutoShowEnabled = ref(true)
+  // 小窗模式下赛后海报弹在屏幕右下角的独立窗口里，主窗口不再自动打开弹层。
+  const postGameSharePopupWindowEnabled = ref(true)
   let postGameShareTimer: ReturnType<typeof setTimeout> | null = null
   let postGameSharePreferencePromise: Promise<void> | null = null
   const subscriptions: Unsubscribe[] = []
@@ -106,6 +108,8 @@ export function usePostGameShare(statusSink: Ref<StatusMessage | null>) {
         if (!hasElectronAPI()) return
 
         try {
+          const popupValue = await electronAPI.store.get('postGameShare.popupWindow')
+          postGameSharePopupWindowEnabled.value = popupValue == null ? true : Boolean(popupValue)
           const storedValue = await electronAPI.store.get('postGameShare.autoShow')
           if (storedValue == null) {
             await electronAPI.store.set('postGameShare.autoShow', true)
@@ -124,15 +128,19 @@ export function usePostGameShare(statusSink: Ref<StatusMessage | null>) {
 
   const handleAutomaticPostGamePoster = (poster: unknown) => {
     void loadPostGameShareAutoShowPreference().then(() => {
-      applyPostGamePoster(poster, postGameShareAutoShowEnabled.value)
+      applyPostGamePoster(poster, postGameShareAutoShowEnabled.value && !postGameSharePopupWindowEnabled.value)
     })
   }
 
   const scheduleAutomaticPostGamePosterRequest = () => {
     void loadPostGameShareAutoShowPreference().then(() => {
-      if (!postGameShareAutoShowEnabled.value) return
+      if (!postGameShareAutoShowEnabled.value || postGameSharePopupWindowEnabled.value) return
       schedulePostGameSharePosterRequest()
     })
+  }
+
+  const setPostGameSharePopupWindowEnabled = (enabled: boolean) => {
+    postGameSharePopupWindowEnabled.value = Boolean(enabled)
   }
 
   const applyPostGamePoster = (value: unknown, openOnReady = true): boolean => {
@@ -269,5 +277,6 @@ export function usePostGameShare(statusSink: Ref<StatusMessage | null>) {
     createMockPostGameSharePoster,
     requestPostGameSharePoster,
     setPostGameShareAutoShowEnabled,
+    setPostGameSharePopupWindowEnabled,
   }
 }

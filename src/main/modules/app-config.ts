@@ -16,7 +16,9 @@ import {
     getPopupWindow,
     raiseOverlayWindow,
     applyPopupWindowPreferences,
+    hidePostGamePosterWindow,
 } from './window-manager.ts'
+import { showPostGamePosterPopup } from './post-game-poster-window.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import {
@@ -841,6 +843,7 @@ async function prepareAndNotifyPostGameShare(lcuService, reason) {
     }
 
     await notifyAllWindows('post-game-share-ready', result.data)
+    await showPostGamePosterPopup(result.data, reason)
 }
 
 async function resolveInProgressChampion(lcuService) {
@@ -1224,6 +1227,7 @@ async function initGameFlowMonitor() {
                     case 'ENTER_CHAMP_SELECT':
                         logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
                         resetPostGameShareSnapshot('LCU phase ChampSelect')
+                        hidePostGamePosterWindow()
                         lastAutoAppliedItemSetChampionId = null
                         resetChampSelectItemSetState(`LCU phase ${phase}`)
                         notifyAllWindows('champ-select-start', {})
@@ -1233,6 +1237,7 @@ async function initGameFlowMonitor() {
                     case 'ENTER_GAME_START':
                         logger.info('游戏开始加载')
                         resetPostGameShareSnapshot('LCU phase GameStart')
+                        hidePostGamePosterWindow()
                         notifyAllWindows('game-started', {})
                         resetChampSelectItemSetState('LCU phase GameStart')
                         stopAutoScreenshotForGame('LCU phase GameStart')

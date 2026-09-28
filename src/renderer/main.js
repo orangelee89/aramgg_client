@@ -178,6 +178,11 @@ const router = createRouter({
       component: () => import('./components/FloatingView.vue'),
     },
     {
+      path: '/post-game-poster',
+      name: 'PostGamePosterWindow',
+      component: () => import('./components/PostGamePosterWindowView.vue'),
+    },
+    {
       path: '/augment-side-panel',
       name: 'AugmentSidePanel',
       component: () => import('./components/AugmentSidePanelView.vue'),

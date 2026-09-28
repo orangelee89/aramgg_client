@@ -1,5 +1,5 @@
 <template>
-  <div class="post-share-overlay" @click.self="emit('close')">
+  <div class="post-share-overlay" :class="{ 'post-share-overlay-window': variant === 'window' }" @click.self="emit('close')">
     <section class="post-share-modal" role="dialog" aria-modal="true" aria-labelledby="post-share-title">
       <header class="post-share-header">
         <div>
@@ -102,7 +102,12 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  variant: {
+    type: String,
+    default: 'modal',
+  },
 })
+const variant = props.variant
 
 const emit = defineEmits(['close'])
 const { t, locale } = useI18n()
@@ -1122,6 +1127,20 @@ onBeforeUnmount(() => {
   padding: 18px;
   background: rgba(0, 0, 0, 0.62);
   backdrop-filter: blur(10px);
+}
+
+/* 独立小窗模式：铺满窗口，不要遮罩和外边距。 */
+.post-share-overlay-window {
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  align-items: stretch;
+}
+
+.post-share-overlay-window .post-share-modal {
+  width: 100%;
+  max-height: 100dvh;
+  border-radius: 10px;
 }
 
 .post-share-modal {

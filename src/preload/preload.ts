@@ -162,6 +162,7 @@ const electronAPI: ElectronAPI = {
     copyImage: (dataUrl) => ipcRenderer.invoke('post-game-share-copy-image', dataUrl),
     saveImage: (dataUrl, suggestedFilename) =>
       ipcRenderer.invoke('post-game-share-save-image', dataUrl, suggestedFilename),
+    hideWindow: () => ipcRenderer.invoke('post-game-poster-window-hide'),
   },
   events: { on, once },
 }

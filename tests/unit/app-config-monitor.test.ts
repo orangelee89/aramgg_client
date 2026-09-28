@@ -36,6 +36,9 @@ vi.mock('../../src/main/modules/window-manager.ts', () => ({
   getPopupWindow: () => null, getFloatingWindow: () => null, getAugmentSidePanelWindow: () => null,
   toggleMainWindow: vi.fn(), applyPopupWindowLayout: vi.fn(), applyPopupWindowPreferences: mocks.applyPopupPreferences,
   notifyAllWindows: mocks.notify,
+  ensurePostGamePosterWindow: vi.fn(async () => null),
+  showPostGamePosterWindow: vi.fn(),
+  hidePostGamePosterWindow: vi.fn(),
 }))
 vi.mock('../../src/main/screenshot.ts', () => ({ getLolGameStatus: async () => ({ isGameOpen: false }) }))
 vi.mock('../../src/main/modules/ipc-handlers.ts', () => ({ registerIpcHandlers: vi.fn() }))
@@ -74,6 +77,8 @@ vi.mock('../../src/main/modules/user-preferences.ts', () => ({
   shouldShowChampionDetails: () => true,
   shouldShowAugmentTopOverlay: () => true,
   shouldShowAugmentSidePanel: () => true,
+  shouldAutoShowPostGameShare: () => true,
+  shouldUsePostGamePosterWindow: () => false,
 }))
 
 beforeEach(() => {

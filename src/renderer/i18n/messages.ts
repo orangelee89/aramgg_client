@@ -132,6 +132,8 @@ export const messages = {
       sidePanelDescription: '识别到海克斯选择时，在游戏右侧展示海克斯和出装推荐列表。',
       postGameShareTitle: '自动展示赛后海报',
       postGameShareDescription: '游戏结束后自动打开赛后海报；关闭后仍可在主页面手动生成和查看。',
+      postGamePopupTitle: '赛后海报弹在屏幕右下角',
+      postGamePopupDescription: '以独立小窗显示在屏幕右下角，不呼出助手主窗口；关闭后改为在主窗口内打开。',
     },
     monitor: {
       title: '英雄监控',
@@ -407,7 +409,7 @@ export const messages = {
     preferences: {
       title: 'WINDOW PREFERENCES', fullscreenTitle: 'Fullscreen display', fullscreenDescription: 'The augment overlay is an always-on-top desktop window and may be hidden by exclusive fullscreen. Use borderless or windowed mode when you need the overlay.', championDetailsTitle: 'Show champion details', championDetailsDescription: 'Show the separate Champion Details window during champion select or champion changes. Champion monitoring and other background features remain active when disabled.',
       hideDetailsTitle: 'Close champion details in game', hideDetailsDescription: 'Hide champion details when loading or entering a game. When disabled, keep the window open and use the setting below to control whether it stays on top.',
-      alwaysOnTopTitle: 'Keep champion details on top', alwaysOnTopDescription: 'Keep champion details above other windows. Changes take effect immediately. The window still hides in game when the close-in-game setting is enabled.', topOverlayTitle: 'Show the top augment overlay', topOverlayDescription: 'Show three augment recommendations at the top of the screen when an augment choice is detected.', sidePanelTitle: 'Show the right recommendation panel', sidePanelDescription: 'Show augment and build recommendations on the right side of the game when an augment choice is detected.', postGameShareTitle: 'Automatically show the post-game poster', postGameShareDescription: 'Open the poster automatically after a match. When disabled, it remains available from the main window.',
+      alwaysOnTopTitle: 'Keep champion details on top', alwaysOnTopDescription: 'Keep champion details above other windows. Changes take effect immediately. The window still hides in game when the close-in-game setting is enabled.', topOverlayTitle: 'Show the top augment overlay', topOverlayDescription: 'Show three augment recommendations at the top of the screen when an augment choice is detected.', sidePanelTitle: 'Show the right recommendation panel', sidePanelDescription: 'Show augment and build recommendations on the right side of the game when an augment choice is detected.', postGameShareTitle: 'Automatically show the post-game poster', postGameShareDescription: 'Open the poster automatically after a match. When disabled, it remains available from the main window.', postGamePopupTitle: 'Show the post-game poster in a corner window', postGamePopupDescription: 'Show the poster in a small window at the bottom-right of the screen without bringing up the main window. When disabled, it opens inside the main window.',
     },
     monitor: {
       title: 'CHAMPION MONITOR', monitoring: 'Monitoring', stopped: 'Stopped', stop: 'Stop monitoring', start: 'Start monitoring', currentSelection: 'Current selection', lastDetected: 'Last detected', championId: 'Champion ID: {id}',
@@ -448,7 +450,7 @@ export const messages = {
     preferences: {
       title: '視窗偏好', fullscreenTitle: '全螢幕顯示說明', fullscreenDescription: '增幅裝置浮窗是桌面置頂視窗，獨佔全螢幕可能會遮擋它；需要顯示浮窗時，請將英雄聯盟影片設定切換為無邊框或視窗化。', championDetailsTitle: '顯示英雄詳情', championDetailsDescription: '選角或英雄變化時顯示獨立的英雄詳情視窗；關閉後仍保持英雄監控與其他後台功能。',
       hideDetailsTitle: '進入遊戲時關閉英雄詳情頁', hideDetailsDescription: '載入或進入遊戲時自動隱藏英雄詳情；關閉後保留視窗，是否置頂由下方開關控制。',
-      alwaysOnTopTitle: '英雄詳情強制置頂', alwaysOnTopDescription: '讓英雄詳情保持在其他視窗上方，切換後立即生效；開啟「進入遊戲時關閉英雄詳情頁」時仍會自動隱藏。', topOverlayTitle: '顯示頂部增幅裝置浮窗', topOverlayDescription: '辨識到增幅裝置選擇時，在螢幕頂部顯示三張推薦。', sidePanelTitle: '顯示右側推薦清單', sidePanelDescription: '辨識到增幅裝置選擇時，在遊戲右側顯示增幅裝置與出裝推薦清單。', postGameShareTitle: '自動顯示賽後海報', postGameShareDescription: '遊戲結束後自動開啟賽後海報；關閉後仍可在主頁面手動產生和查看。',
+      alwaysOnTopTitle: '英雄詳情強制置頂', alwaysOnTopDescription: '讓英雄詳情保持在其他視窗上方，切換後立即生效；開啟「進入遊戲時關閉英雄詳情頁」時仍會自動隱藏。', topOverlayTitle: '顯示頂部增幅裝置浮窗', topOverlayDescription: '辨識到增幅裝置選擇時，在螢幕頂部顯示三張推薦。', sidePanelTitle: '顯示右側推薦清單', sidePanelDescription: '辨識到增幅裝置選擇時，在遊戲右側顯示增幅裝置與出裝推薦清單。', postGameShareTitle: '自動顯示賽後海報', postGameShareDescription: '遊戲結束後自動開啟賽後海報；關閉後仍可在主頁面手動產生和查看。', postGamePopupTitle: '賽後海報彈在螢幕右下角', postGamePopupDescription: '以獨立小視窗顯示在螢幕右下角，不喚出助手主視窗；關閉後改為在主視窗內開啟。',
     },
     monitor: {
       title: '英雄監控', monitoring: '監控中', stopped: '未啟動', stop: '停止監控', start: '啟動監控', currentSelection: '目前選擇', lastDetected: '最後偵測', championId: '英雄 ID：{id}',

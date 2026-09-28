@@ -48,7 +48,7 @@ import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
-const emit = defineEmits(['post-game-auto-show-changed'])
+const emit = defineEmits(['post-game-auto-show-changed', 'post-game-popup-window-changed'])
 const preferenceDefinitions = [
   {
     key: 'showChampionDetails',
@@ -92,6 +92,13 @@ const preferenceDefinitions = [
     titleKey: 'preferences.postGameShareTitle',
     descriptionKey: 'preferences.postGameShareDescription',
   },
+  {
+    key: 'postGameSharePopupWindow',
+    storeKey: 'postGameShare.popupWindow',
+    defaultValue: true,
+    titleKey: 'preferences.postGamePopupTitle',
+    descriptionKey: 'preferences.postGamePopupDescription',
+  },
 ]
 
 const preferenceItems = computed(() => preferenceDefinitions.map(item => ({
@@ -126,6 +133,9 @@ const loadPreferences = async () => {
       preferences[item.key] = Boolean(storedValue)
       if (item.key === 'autoShowPostGameShare') {
         emit('post-game-auto-show-changed', preferences[item.key])
+      }
+      if (item.key === 'postGameSharePopupWindow') {
+        emit('post-game-popup-window-changed', preferences[item.key])
       }
     } catch (error) {
       console.warn('读取窗口偏好失败:', item.storeKey, error)

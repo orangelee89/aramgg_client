@@ -207,6 +207,7 @@
                 <ItemSetInstaller />
                 <OverlayPreferences
                     @post-game-auto-show-changed="setPostGameShareAutoShowEnabled"
+                    @post-game-popup-window-changed="setPostGameSharePopupWindowEnabled"
                 />
                 <ChampionMonitor />
                 <MatchHistoryPanel />
@@ -529,6 +530,7 @@ const {
     openPostGameShareFromFloatingButton,
     createMockPostGameSharePoster,
     setPostGameShareAutoShowEnabled,
+    setPostGameSharePopupWindowEnabled,
 } = usePostGameShare(testStatus)
 
 const loadVersionInfo = async () => {
