@@ -62,9 +62,8 @@ const MAX_ITEM_SETS_PER_CHAMPION = 4
 const MAX_STARTING_SEQUENCES = 2
 const MAX_CORE_SEQUENCES = 4
 const MAX_FULL_BUILD_SEQUENCES = 3
-// 商店推荐页一行放不下太多图标，每块最多 5 件。
-const MAX_LATER_ITEMS = 5
-const MAX_SITUATIONAL_ITEMS = 5
+// 商店推荐页一行放 5 个图标最整齐：后续装备、备选装备不限数量，按每 5 件拆成一块。
+const ITEMS_PER_ROW = 5
 const ITEM_SET_SORT_RANK = 100
 
 function getChampionId(champion: ChampionLike): number {
@@ -286,12 +285,12 @@ function compareSituationalRecords(left: BuildRecord, right: BuildRecord): numbe
 }
 
 /**
- * 把记录里的所有装备摊平成单件（后续装备的 step 2 记录含两件），排序后去重，合成一块。
+ * 把记录里的所有装备摊平成单件（后续装备的 step 2 记录含两件），排序后去重，
+ * 按每行 5 件拆成若干块；只有一块时不编号。
  */
-function createFlattenedItemBlock(
+function createFlattenedItemBlocks(
   records: BuildRecord[],
   title: string,
-  limit: number,
   compareRecords: (left: BuildRecord, right: BuildRecord) => number = compareRecordsByConfidence
 ) {
   const seen = new Set<string>()
@@ -308,18 +307,20 @@ function createFlattenedItemBlock(
       seen.add(itemId)
       return true
     })
-    .slice(0, limit)
 
   if (!itemIds.length) {
     return []
   }
 
-  return [
-    {
-      type: title,
-      items: toBlockItems(itemIds),
-    },
-  ]
+  const rows: string[][] = []
+  for (let index = 0; index < itemIds.length; index += ITEMS_PER_ROW) {
+    rows.push(itemIds.slice(index, index + ITEMS_PER_ROW))
+  }
+
+  return rows.map((rowItemIds, index) => ({
+    type: rows.length > 1 ? `${title} ${index + 1}` : title,
+    items: toBlockItems(rowItemIds),
+  }))
 }
 
 function createItemSet(
@@ -335,13 +336,8 @@ function createItemSet(
     ...createSequenceBlocks(build?.startingItems || [], '出门装', MAX_STARTING_SEQUENCES),
     ...createSequenceBlocks(coreRecords, '核心', MAX_CORE_SEQUENCES),
     ...createSequenceBlocks(build?.fullItems || [], '完整出装', MAX_FULL_BUILD_SEQUENCES),
-    ...createFlattenedItemBlock(build?.itemExtensions || [], '后续装备', MAX_LATER_ITEMS),
-    ...createFlattenedItemBlock(
-      build?.situationalItems || [],
-      '备选装备',
-      MAX_SITUATIONAL_ITEMS,
-      compareSituationalRecords
-    ),
+    ...createFlattenedItemBlocks(build?.itemExtensions || [], '后续装备'),
+    ...createFlattenedItemBlocks(build?.situationalItems || [], '备选装备', compareSituationalRecords),
   ]
 
   if (!championId || !blocks.length) {

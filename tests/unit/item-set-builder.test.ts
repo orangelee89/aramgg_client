@@ -127,7 +127,7 @@ describe('ARAM item set builder', () => {
     expect(result.itemSets.map(itemSet => itemSet.title)).toEqual(['AD / Crit', 'AD'])
   })
 
-  it('caps later and alternative item blocks at five items', () => {
+  it('splits later and alternative items into rows of five without dropping any', () => {
     const result = createItemSets(
       { championId: 1, alias: 'Annie' },
       null,
@@ -141,8 +141,12 @@ describe('ARAM item set builder', () => {
     )
 
     const blocks = result.itemSets[0].blocks
-    expect(blocks.find(block => block.type === '后续装备')?.items).toHaveLength(5)
-    expect(blocks.find(block => block.type === '备选装备')?.items).toHaveLength(5)
+    const types = blocks.map(block => block.type)
+    expect(types).toEqual(['核心 1（500场）', '后续装备 1', '后续装备 2', '备选装备 1', '备选装备 2'])
+    expect(blocks[1].items).toHaveLength(5)
+    expect(blocks[2].items).toHaveLength(3)
+    expect(blocks[3].items).toHaveLength(5)
+    expect(blocks[4].items).toHaveLength(4)
   })
 
   it('also accepts a raw builds array', () => {
