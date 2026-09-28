@@ -120,10 +120,42 @@ function compareRecordsByConfidence(left: BuildRecord, right: BuildRecord): numb
   return Number(right?.winRate || 0) - Number(left?.winRate || 0)
 }
 
+// 场次达到同组最高场次这个比例以上算"场次多"。
+const HIGH_GAMES_RATIO = 0.5
+
+/**
+ * 排序规则：场次多且胜率高 → 场次多胜率低 → 场次少胜率高 → 场次少胜率低。
+ * 先按"多/少"分档，档内按胜率，再按场次、选取率兜底。
+ */
+function sortByGamesTierThenWinRate<T>(
+  records: T[],
+  getGames: (record: T) => number,
+  getWinRate: (record: T) => number,
+  getPickRate: (record: T) => number = () => 0
+): T[] {
+  const maxGames = records.reduce((best, record) => Math.max(best, getGames(record)), 0)
+  const tierOf = (record: T) => (maxGames > 0 && getGames(record) >= maxGames * HIGH_GAMES_RATIO ? 1 : 0)
+
+  return [...records].sort((left, right) =>
+    (tierOf(right) - tierOf(left)) ||
+    (getWinRate(right) - getWinRate(left)) ||
+    (getGames(right) - getGames(left)) ||
+    (getPickRate(right) - getPickRate(left))
+  )
+}
+
+function getRecordWinRate(record: BuildRecord): number {
+  const winRate = Number(record?.winRate ?? record?.win_rate ?? 0)
+  return Number.isFinite(winRate) ? winRate : 0
+}
+
 function getTrustedRecords(records: BuildRecord[]): BuildRecord[] {
-  return records
-    .filter(hasRecommendationEvidence)
-    .sort(compareRecordsByConfidence)
+  return sortByGamesTierThenWinRate(
+    records.filter(hasRecommendationEvidence),
+    getRecordGames,
+    getRecordWinRate,
+    getRecordPickRate
+  )
 }
 
 function getBestCoreGames(records: BuildRecord[]): number {
@@ -197,7 +229,7 @@ function collectBuilds(builds: any): any[] {
       : []
 
   const seen = new Set<string>()
-  return records
+  const deduped = records
     .filter((build) => build && typeof build === 'object' && !Array.isArray(build))
     .filter((build) => {
       const coreKey = Array.isArray(build?.coreItems)
@@ -214,7 +246,12 @@ function collectBuilds(builds: any): any[] {
       seen.add(key)
       return true
     })
-    .slice(0, MAX_ITEM_SETS_PER_CHAMPION)
+
+  return sortByGamesTierThenWinRate(
+    deduped,
+    getBuildGames,
+    (build) => Number(build?.winRate ?? build?.stats?.winRate ?? 0) || 0
+  ).slice(0, MAX_ITEM_SETS_PER_CHAMPION)
 }
 
 function normalizePercent(value: unknown): number | null {

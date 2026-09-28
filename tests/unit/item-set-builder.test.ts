@@ -94,7 +94,9 @@ describe('ARAM item set builder', () => {
       '后续装备',
       '备选装备',
     ])
-    expect(itemsOf(2)).toEqual(['3084', '3111', '6631'])
+    // 631 与 613 场都属于"场次多"，按胜率 56% 的序列排前面
+    expect(itemsOf(2)).toEqual(['3748', '3111', '6631'])
+    expect(itemsOf(3)).toEqual(['3084', '3111', '6631'])
     // 后续装备摊平成单件、按场次排序、去重
     expect(itemsOf(5)).toEqual(['3053', '3143', '3748'])
     // 备选装备按区分度排序
@@ -147,6 +149,38 @@ describe('ARAM item set builder', () => {
     expect(blocks[2].items).toHaveLength(3)
     expect(blocks[3].items).toHaveLength(5)
     expect(blocks[4].items).toHaveLength(4)
+  })
+
+  it('orders sequences and builds by games tier first, then win rate', () => {
+    const result = createItemSets(
+      { championId: 1, alias: 'Annie' },
+      null,
+      [
+        {
+          tags: { style: 'AP' },
+          games: 900,
+          winRate: 0.5,
+          coreItems: [
+            { itemIds: [1, 2, 3], games: 1000, winRate: 0.5 },
+            { itemIds: [4, 5, 6], games: 900, winRate: 0.56 },
+            { itemIds: [7, 8, 9], games: 100, winRate: 0.7 },
+            { itemIds: [10, 11, 12], games: 80, winRate: 0.4 },
+          ],
+        },
+        { tags: { style: 'Burn' }, games: 1000, winRate: 0.53, coreItems: [{ itemIds: [13, 14, 15], games: 500 }] },
+        { tags: { style: 'Tank' }, games: 300, winRate: 0.6, coreItems: [{ itemIds: [16, 17, 18], games: 300 }] },
+      ]
+    )
+
+    // 路线：Burn(1000场 53%) 与 AP(900场 50%) 场次多，Burn 胜率高在前；Tank 场次少排最后
+    expect(result.itemSets.map(itemSet => itemSet.title)).toEqual(['Burn', 'AP', 'Tank'])
+    const apBlocks = result.itemSets[1].blocks.filter(block => block.type.startsWith('核心'))
+    expect(apBlocks.map(block => block.items.map(item => item.id))).toEqual([
+      ['4', '5', '6'],
+      ['1', '2', '3'],
+      ['7', '8', '9'],
+      ['10', '11', '12'],
+    ])
   })
 
   it('also accepts a raw builds array', () => {
