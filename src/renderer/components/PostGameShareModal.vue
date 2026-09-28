@@ -1095,7 +1095,7 @@ onBeforeUnmount(() => {
 }
 
 .post-share-modal {
-  width: min(100%, 360px);
+  width: min(100%, 640px);
   max-height: calc(100dvh - 36px);
   display: flex;
   flex-direction: column;
@@ -1164,17 +1164,22 @@ onBeforeUnmount(() => {
 
 .post-share-preview {
   min-height: 0;
+  flex: 1 1 auto;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   overflow: auto;
   padding: 0;
   background: transparent;
   box-shadow: none;
 }
 
+/* 海报按窗口可用空间等比缩放：宽不超过弹窗，高不超过视口减去标题、对比列表和按钮的空间。 */
 .post-share-canvas {
-  width: min(100%, 260px);
+  width: auto;
   height: auto;
+  max-width: 100%;
+  max-height: calc(100dvh - 260px);
   border-radius: 8px;
   outline: 1px solid rgba(255, 255, 255, 0.1);
   outline-offset: -1px;
@@ -1211,7 +1216,7 @@ onBeforeUnmount(() => {
 }
 
 .post-share-compare-list {
-  max-height: 148px;
+  max-height: min(148px, 22dvh);
   overflow: auto;
   display: flex;
   flex-direction: column;
