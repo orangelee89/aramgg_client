@@ -49,7 +49,8 @@ import {
 const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 2 * 60 * 1000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 60 * 1000
 const PARTIAL_OCR_SAVE_INTERVAL_MS = 10000
-const PARTIAL_OCR_MAX_FILES = 60
+const PARTIAL_OCR_MAX_FILES = 40
+const PARTIAL_OCR_SAVE_WIDTH = 1280
 const AUGMENT_WINRATE_INLINE_WAIT_MS = 80
 const VISIBLE_AUGMENT_NO_MATCH_GRACE_MS = 1800
 const VISIBLE_AUGMENT_PARTIAL_GRACE_MS = 2500
@@ -1149,6 +1150,8 @@ class AutoScreenshotService {
 
         void (async () => {
             try {
+                // 诊断截图只需要看清标题区域，4K 原始帧落盘前缩到 1280 宽，
+                // 单张从约 1.8MB 降到约 300KB，60 张上限也只占 20MB 左右。
                 const pngBuffer = isRawFrame(imageBuffer)
                     ? await sharp(imageBuffer.buffer, {
                         raw: {
@@ -1156,7 +1159,10 @@ class AutoScreenshotService {
                             height: imageBuffer.height,
                             channels: imageBuffer.channels,
                         },
-                    }).png().toBuffer()
+                    })
+                        .resize({ width: Math.min(PARTIAL_OCR_SAVE_WIDTH, imageBuffer.width), withoutEnlargement: true })
+                        .png()
+                        .toBuffer()
                     : imageBuffer
                 await fs.ensureDir(dir)
                 await fs.writeFile(filePath, pngBuffer)
