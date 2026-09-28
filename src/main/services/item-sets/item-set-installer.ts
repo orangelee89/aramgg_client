@@ -64,6 +64,7 @@ const MAX_CORE_SEQUENCES = 4
 const MAX_FULL_BUILD_SEQUENCES = 3
 const MAX_LATER_ITEMS = 12
 const MAX_SITUATIONAL_ITEMS = 12
+const ITEM_SET_SORT_RANK = 100
 
 function getChampionId(champion: ChampionLike): number {
   return Number(champion.championId ?? champion.id ?? 0)
@@ -72,10 +73,6 @@ function getChampionId(champion: ChampionLike): number {
 function getChampionKey(champion: ChampionLike, championName: ChampionLike | null = null): string {
   const rawKey = champion.alias || champion.nameEN || championName?.alias || championName?.nameEN || ''
   return String(rawKey).replace(/[^a-zA-Z0-9]/g, '')
-}
-
-function getChampionLabel(champion: ChampionLike, championName: ChampionLike | null = null): string {
-  return getChampionKey(champion, championName) || String(getChampionId(champion))
 }
 
 function normalizeItemIds(record: BuildRecord): string[] {
@@ -326,12 +323,11 @@ function createFlattenedItemBlock(
 
 function createItemSet(
   champion: ChampionLike,
-  championName: ChampionLike | null,
+  _championName: ChampionLike | null,
   build: any,
   index: number
 ) {
   const championId = getChampionId(champion)
-  const championLabel = getChampionLabel(champion, championName)
   const buildTag = getBuildTitleTag(build, index)
   const coreRecords = build?.coreItems || build?.recommended || []
   const blocks = [
@@ -351,16 +347,18 @@ function createItemSet(
     return null
   }
 
+  // 商店里的出装页标签宽度有限，标题只保留来源和定位；英雄和版本信息在页内块标题里已经足够。
+  // sortrank 高的排在前面，OP.GG 桌面端写的页是 1，这里用 100 保证 ARAMGG 页默认选中。
   return {
-    title: `ARAMGG ARAM ${championLabel} ${buildTag}${build?.patch ? ` ${build.patch}` : ''}`,
+    title: `ARAMGG ${buildTag}`,
     associatedMaps: [SUMMONERS_RIFT_MAP_ID, ARAM_MAP_ID],
     associatedChampions: [championId],
     blocks,
     map: 'any',
     mode: 'any',
     preferredItemSlots: [],
-    sortrank: 0,
-    sortRank: 0,
+    sortrank: ITEM_SET_SORT_RANK,
+    sortRank: ITEM_SET_SORT_RANK,
     startedFrom: 'blank',
     type: 'custom',
   }
