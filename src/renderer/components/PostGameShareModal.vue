@@ -598,8 +598,12 @@ const HORSE_HONOR_REASON_KEYS = {
   deaths: 'postGame.horseReasonDeaths',
 }
 
+// 拼名的固定顺序："板"永远紧挨着最后的"马"。
+const HORSE_HONOR_ORDER = ['leader', 'top', 'tank', 'kills', 'assists', 'heal', 'control', 'deaths']
+
 function getHorseHonors(rating) {
-  return Array.isArray(rating?.honors) ? rating.honors.filter((honor) => HORSE_HONOR_PART_KEYS[honor]) : []
+  const honors = Array.isArray(rating?.honors) ? rating.honors.filter((honor) => HORSE_HONOR_PART_KEYS[honor]) : []
+  return HORSE_HONOR_ORDER.filter((honor) => honors.includes(honor))
 }
 
 /**
