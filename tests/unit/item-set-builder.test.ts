@@ -45,8 +45,8 @@ describe('ARAM item set builder', () => {
     expect(result.itemSets[1].title).toBe('Burn')
     expect(result.itemSets[0].sortrank).toBe(100)
     expect(result.itemSets[0].blocks.map(block => block.type)).toEqual([
-      '出门装 1',
-      '核心 1',
+      '出门装 1（160场 胜率52.0%）',
+      '核心 1（500场 胜率55.0%）',
       '后续装备',
       '备选装备',
     ])
@@ -86,11 +86,11 @@ describe('ARAM item set builder', () => {
     const itemsOf = (index: number) => blocks[index].items.map(item => item.id)
 
     expect(blocks.map(block => block.type)).toEqual([
-      '出门装 1',
-      '出门装 2',
-      '核心 1',
-      '核心 2',
-      '核心 3',
+      '出门装 1（1场 胜率50.0%）',
+      '出门装 2（1场 胜率50.0%）',
+      '核心 1（613场 胜率56.0%）',
+      '核心 2（631场 胜率54.0%）',
+      '核心 3（376场 胜率51.0%）',
       '后续装备',
       '备选装备',
     ])
@@ -144,7 +144,7 @@ describe('ARAM item set builder', () => {
 
     const blocks = result.itemSets[0].blocks
     const types = blocks.map(block => block.type)
-    expect(types).toEqual(['核心 1', '后续装备 1', '后续装备 2', '备选装备 1', '备选装备 2'])
+    expect(types).toEqual(['核心 1（500场）', '后续装备 1', '后续装备 2', '备选装备 1', '备选装备 2'])
     expect(blocks[1].items).toHaveLength(5)
     expect(blocks[2].items).toHaveLength(3)
     expect(blocks[3].items).toHaveLength(5)
@@ -212,9 +212,9 @@ describe('ARAM item set builder', () => {
     expect(result.skippedBuilds).toEqual([])
     expect(result.itemSets).toHaveLength(1)
     expect(result.itemSets[0].blocks.map(block => block.type)).toEqual([
-      '出门装 1',
-      '核心 1',
-      '完整出装 1',
+      '出门装 1（选取16.4% 胜率51.5%）',
+      '核心 1（选取16.1% 胜率43.4%）',
+      '完整出装 1（选取3.0% 胜率50.5%）',
       '备选装备',
     ])
   })

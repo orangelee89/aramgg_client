@@ -65,9 +65,8 @@ const MAX_FULL_BUILD_SEQUENCES = 3
 // 商店推荐页一行放 5 个图标最整齐：后续装备、备选装备不限数量，按每 5 件拆成一块。
 const ITEMS_PER_ROW = 5
 const ITEM_SET_SORT_RANK = 100
-// 实验：商店"道具组合"面板在 4K 下整体左偏，怀疑是长标题让面板瞬间过宽触发了横向滚动，
-// 先去掉块标题里的场次/胜率验证；确认后再决定统计数字怎么摆。
-const ITEM_SET_BLOCK_STATS_IN_TITLE = false
+// 商店"道具组合"面板初次打开时的左偏已确认与标题长度无关（拖动商店窗口即恢复），块标题保留场次/胜率。
+const ITEM_SET_BLOCK_STATS_IN_TITLE = true
 
 function getChampionId(champion: ChampionLike): number {
   return Number(champion.championId ?? champion.id ?? 0)
