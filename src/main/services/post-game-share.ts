@@ -825,8 +825,12 @@ function readPlayerItems(record: AnyRecord): number[] {
     .filter((id: number) => Number.isInteger(id) && id > 0)
 }
 
+/**
+ * 合并键：Live Client Data 里的玩家名带 Riot ID 标签（"名字#TAG"），赛后数据块里不带，
+ * 统一去掉 "#" 之后的部分再归一化，两边才能合成同一个人。
+ */
 function buildPlayerKey(summonerName: string, team: string, championId: number | null): string {
-  const identity = normalizeIdentityText(summonerName)
+  const identity = normalizeIdentityText(String(summonerName || '').split('#')[0])
   if (identity) {
     return `name:${identity}`
   }

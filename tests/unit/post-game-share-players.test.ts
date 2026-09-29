@@ -113,3 +113,24 @@ describe('post-game poster players: team containers', () => {
     expect(players[0].isSelf).toBe(true)
   })
 })
+
+
+describe('post-game poster players: riot id tags', () => {
+  it('keys live-client names with a #tag the same as end-of-game names without it', async () => {
+    const live = await collectPosterPlayers({
+      allPlayers: [
+        { summonerName: 'Buddy#NA1', riotIdGameName: 'Buddy', championName: 'Annie', team: 'ORDER', scores: { kills: 4, deaths: 2, assists: 6 } },
+        { summonerName: 'Rival#EUW', championName: 'Olaf', team: 'CHAOS', scores: { kills: 1, deaths: 5, assists: 2 } },
+      ],
+    }, null, [])
+    const eog = await collectPosterPlayers({
+      teams: [
+        { teamId: 100, players: [eogPlayer('Buddy', 1, 100, 25000, 18000)] },
+        { teamId: 200, players: [eogPlayer('Rival', 2, 200, 18000, 26000)] },
+      ],
+    }, null, [])
+
+    expect(live.map((player) => player.key)).toEqual(['name:buddy', 'name:rival'])
+    expect(eog.map((player) => player.key)).toEqual(['name:buddy', 'name:rival'])
+  })
+})
