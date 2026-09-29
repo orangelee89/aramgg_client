@@ -61,7 +61,9 @@
       "!**/docs/**",
       "!**/example/**",
       "!**/examples/**",
-      "!node_modules/onnxruntime-node/bin/napi-v6/linux/**"
+      "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
     ],
     "extraResources": [
       {
@@ -87,11 +89,7 @@
         }
       ],
       "icon": "public/icon.ico",
-      "artifactName": "aramgg_client Setup ${version}.${ext}",
-      "files": [
-        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
-        "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
-      ]
+      "artifactName": "aramgg_client Setup ${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -130,7 +128,7 @@
       ],
       "artifactName": "aramgg_client-${version}-mac-${arch}.${ext}",
       "files": [
-        "!node_modules/onnxruntime-node/bin/napi-v6/win32/**"
+        "node_modules/onnxruntime-node/bin/napi-v6/darwin/**/*"
       ],
       "extendInfo": {
         "NSScreenCaptureUsageDescription": "ARAMGG 需要截取游戏画面来识别海克斯卡片。"
