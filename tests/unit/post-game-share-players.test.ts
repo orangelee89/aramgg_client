@@ -54,7 +54,7 @@ describe('post-game poster players', () => {
     expect(players[0].champion.name).toBe('英雄875')
     expect(players[1].stats.damageDealtToChampions).toBe(25000)
     expect(players[2].stats.damageTaken).toBe(22000)
-    expect(players[0].key).toBe('name:me#na1')
+    expect(players[0].key).toBe('name:me')
   })
 
   it('marks self through identity candidates and keeps only one self', async () => {
