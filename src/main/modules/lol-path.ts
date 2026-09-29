@@ -47,7 +47,10 @@ async function getLeagueInstallLayout(normalizedPath: string): Promise<LeagueIns
 
   const hasRootClient =
     await fileExists(path.join(normalizedPath, 'LeagueClient.exe')) ||
-    await fileExists(path.join(normalizedPath, 'LeagueClientUx.exe'))
+    await fileExists(path.join(normalizedPath, 'LeagueClientUx.exe')) ||
+    // macOS：/Applications/League of Legends.app 或其 Contents/LoL 目录
+    await directoryExists(path.join(normalizedPath, 'Contents', 'LoL')) ||
+    await directoryExists(path.join(normalizedPath, 'LeagueClient.app'))
 
   return hasRootClient ? 'root-client' : null
 }

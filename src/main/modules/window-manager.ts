@@ -263,6 +263,11 @@ function setOverlayAlwaysOnTop(
         return
     }
 
+    if (process.platform === 'darwin' && typeof window.setVisibleOnAllWorkspaces === 'function') {
+        // macOS：让浮窗能出现在全屏游戏之上
+        window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    }
+
     try {
         window.setAlwaysOnTop(Boolean(alwaysOnTop), OVERLAY_ALWAYS_ON_TOP_LEVEL)
     } catch (error) {

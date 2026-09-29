@@ -49,7 +49,7 @@ type ProcessQueryErrorDiagnostic = {
 }
 
 export type ProcessQueryAttempt = {
-  strategy: 'get-cim-instance' | 'get-process'
+  strategy: 'get-cim-instance' | 'get-process' | 'ps'
   timeoutMs: number
   durationMs: number
   succeeded: boolean
@@ -456,7 +456,85 @@ async function readLcuAuthFromProcessLog(record: Win32ProcessRecord): Promise<To
   return [null, null, null]
 }
 
+/** macOS 默认安装位置的 lockfile（进程查询失败时的兜底）。 */
+const MAC_LOCKFILE_CANDIDATES = [
+  '/Applications/League of Legends.app/Contents/LoL/lockfile',
+]
+
+/**
+ * 解析 `ps -axo pid=,command=` 的输出，挑出 League 客户端进程。
+ * 命令行里带 --remoting-auth-token / --app-port，可直接复用 Windows 的解析逻辑。
+ */
+export function parseMacProcessList(stdout: string): Win32ProcessRecord[] {
+  const records: Win32ProcessRecord[] = []
+  for (const rawLine of String(stdout || '').split('\n')) {
+    const line = rawLine.trim()
+    const match = /^(\d+)\s+(.+)$/.exec(line)
+    if (!match) {
+      continue
+    }
+    const commandLine = match[2]
+    if (!/LeagueClientUx|LeagueClient(?:\s|$|\/)/.test(commandLine) || /LeagueClientUxRender|LeagueClientUxHelper/.test(commandLine)) {
+      continue
+    }
+    const isUx = /LeagueClientUx/.test(commandLine)
+    // macOS 安装路径带空格（"League of Legends.app"），非贪婪匹配到可执行文件名为止
+    const executableMatch = /^(\/.*?\/(?:LeagueClientUx|LeagueClient))(?:\s|$)/.exec(commandLine)
+    records.push({
+      Name: isUx ? 'LeagueClientUx' : 'LeagueClient',
+      ProcessId: Number(match[1]),
+      CommandLine: commandLine,
+      ExecutablePath: executableMatch ? executableMatch[1] : null,
+    })
+  }
+  return records
+}
+
+async function queryMacLeagueClientProcesses(): Promise<ProcessQueryResult> {
+  const startedAt = Date.now()
+  try {
+    const { stdout } = await execFileAsync('ps', ['-axo', 'pid=,command='], {
+      timeout: 4000,
+      maxBuffer: 1024 * 1024,
+      encoding: 'utf8',
+    })
+    const records = parseMacProcessList(String(stdout || ''))
+    return {
+      records,
+      attempts: [{
+        strategy: 'ps',
+        timeoutMs: 4000,
+        durationMs: Date.now() - startedAt,
+        succeeded: true,
+        recordCount: records.length,
+        usableRecordCount: records.filter(hasUsableProcessMetadata).length,
+        error: null,
+      }],
+    }
+  } catch (error) {
+    logger.debug('[LCU discovery] ps query failed:', error instanceof Error ? error.message : String(error))
+    return { records: [], attempts: [] }
+  }
+}
+
+async function readMacLockfileFallback(): Promise<TokenLoadResult> {
+  for (const lockfilePath of MAC_LOCKFILE_CANDIDATES) {
+    try {
+      const result = parseLcuAuthFromLockfile(await readFile(lockfilePath, 'utf8'))
+      if (result[0] && result[1]) {
+        return result
+      }
+    } catch {
+      // 客户端没运行时 lockfile 不存在，忽略。
+    }
+  }
+  return [null, null, null]
+}
+
 async function queryLeagueClientProcesses(): Promise<ProcessQueryResult> {
+  if (process.platform === 'darwin') {
+    return queryMacLeagueClientProcesses()
+  }
   if (process.platform !== 'win32') {
     return { records: [], attempts: [] }
   }
@@ -528,8 +606,8 @@ export async function discoverLcuAuthFromProcess(
 
     const { records, attempts } = await queryLeagueClientProcesses()
   const sortedRecords = records.sort((a, b) => {
-    const aIsUx = a.Name === 'LeagueClientUx.exe' ? 1 : 0
-    const bIsUx = b.Name === 'LeagueClientUx.exe' ? 1 : 0
+    const aIsUx = String(a.Name || '').startsWith('LeagueClientUx') ? 1 : 0
+    const bIsUx = String(b.Name || '').startsWith('LeagueClientUx') ? 1 : 0
     return bIsUx - aIsUx
   })
 
@@ -552,6 +630,13 @@ export async function discoverLcuAuthFromProcess(
         const logResult = await readLcuAuthFromProcessLog(record)
         if (logResult[0] && logResult[1]) {
             return cacheLcuAuthResult(logResult)
+        }
+    }
+
+    if (process.platform === 'darwin') {
+        const macResult = await readMacLockfileFallback()
+        if (macResult[0] && macResult[1]) {
+            return cacheLcuAuthResult(macResult)
         }
     }
 

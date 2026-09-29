@@ -38,7 +38,9 @@
       "node_modules/onnxruntime-node/**/*",
       "node_modules/paddleocr/**/*",
       "node_modules/node-screenshots/**/*",
-      "node_modules/node-screenshots-win32-x64-msvc/**/*"
+      "node_modules/node-screenshots-win32-x64-msvc/**/*",
+      "node_modules/node-screenshots-darwin-x64/**/*",
+      "node_modules/node-screenshots-darwin-arm64/**/*"
     ],
     "afterPack": "scripts/after-pack.cjs",
     "electronLanguages": [
@@ -59,9 +61,7 @@
       "!**/docs/**",
       "!**/example/**",
       "!**/examples/**",
-      "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
-      "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
-      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
+      "!node_modules/onnxruntime-node/bin/napi-v6/linux/**"
     ],
     "extraResources": [
       {
@@ -87,7 +87,11 @@
         }
       ],
       "icon": "public/icon.ico",
-      "artifactName": "aramgg_client Setup ${version}.${ext}"
+      "artifactName": "aramgg_client Setup ${version}.${ext}",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -101,6 +105,39 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "aramgg_client"
+    },
+    "mac": {
+      "category": "public.app-category.games",
+      "icon": "public/icon.png",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "aramgg_client-${version}-mac-${arch}.${ext}",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/**"
+      ],
+      "extendInfo": {
+        "NSScreenCaptureUsageDescription": "ARAMGG 需要截取游戏画面来识别海克斯卡片。"
+      }
+    },
+    "dmg": {
+      "sign": false
     }
   },
   "dependencies": {
