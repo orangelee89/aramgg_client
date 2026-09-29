@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/valkia/aramgg_client/releases/latest"><img src="https://img.shields.io/github/v/release/valkia/aramgg_client?style=flat-square&color=c8a96a&label=release" alt="Latest release" /></a>
+  <a href="https://github.com/orangelee89/aramgg_client/releases/latest"><img src="https://img.shields.io/github/v/release/orangelee89/aramgg_client?style=flat-square&color=c8a96a&label=4K-fork" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/platform-Windows%20x64-111923?style=flat-square&logo=windows11&logoColor=f4ecdc" alt="Windows x64" />
   <img src="https://img.shields.io/badge/LCU-read--only-54d884?style=flat-square" alt="Read-only LCU integration" />
   <img src="https://img.shields.io/badge/UI-zh--CN%20%7C%20en--US%20%7C%20zh--TW-c29c6d?style=flat-square" alt="Simplified Chinese, English, and Traditional Chinese" />
@@ -18,7 +18,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/valkia/aramgg_client/releases/latest"><strong>Download for Windows</strong></a>
+  <a href="https://github.com/orangelee89/aramgg_client/releases/latest"><strong>Download for Windows</strong></a>
+  ·
+  <a href="https://github.com/orangelee89/aramgg_client/releases/latest"><strong>Download for macOS</strong></a>
   ·
   <a href="https://aramgg.com"><strong>Visit ARAMGG</strong></a>
   ·
@@ -62,7 +64,7 @@
 
 ## Install and use
 
-1. Download the latest `aramgg_client Setup <version>.exe` from [Releases](https://github.com/valkia/aramgg_client/releases/latest).
+1. Download from this fork's [Releases](https://github.com/orangelee89/aramgg_client/releases/latest): Windows `aramgg_client-Setup-<version>-win-x64-4K-fork.exe`; macOS `aramgg_client-<version>-mac-arm64.dmg` (Apple silicon) or `-mac-x64.dmg` (Intel). Builds are unsigned: right-click → Open on first launch and grant Screen Recording permission.
 2. Install and launch ARAMGG Assistant, then launch League Client. The app discovers LCU from the running client first.
 3. Enter ARAM: use the champion detail window during champion select, then wait for an Augment selection screen in-game.
 4. If automatic recognition misses, press `F1` to capture and analyze manually.

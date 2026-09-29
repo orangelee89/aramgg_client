@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/valkia/aramgg_client/releases/latest"><img src="https://img.shields.io/github/v/release/valkia/aramgg_client?style=flat-square&color=c8a96a&label=release" alt="最新版本" /></a>
+  <a href="https://github.com/orangelee89/aramgg_client/releases/latest"><img src="https://img.shields.io/github/v/release/orangelee89/aramgg_client?style=flat-square&color=c8a96a&label=4K-fork" alt="最新版本" /></a>
   <img src="https://img.shields.io/badge/platform-Windows%20x64-111923?style=flat-square&logo=windows11&logoColor=f4ecdc" alt="Windows x64" />
   <img src="https://img.shields.io/badge/LCU-read--only-54d884?style=flat-square" alt="LCU 只读" />
   <img src="https://img.shields.io/badge/UI-zh--CN%20%7C%20en--US%20%7C%20zh--TW-c29c6d?style=flat-square" alt="支持简体中文、英文与繁体中文" />
@@ -18,7 +18,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/valkia/aramgg_client/releases/latest"><strong>下载 Windows 安装包</strong></a>
+  <a href="https://github.com/orangelee89/aramgg_client/releases/latest"><strong>下载 Windows 安装包</strong></a>
+  ·
+  <a href="https://github.com/orangelee89/aramgg_client/releases/latest"><strong>下载 macOS 安装包</strong></a>
   ·
   <a href="https://aramgg.com"><strong>访问 ARAMGG 主站</strong></a>
   ·
@@ -63,7 +65,7 @@
 
 ## 安装与使用
 
-1. 从 [Releases](https://github.com/valkia/aramgg_client/releases/latest) 下载最新的 `aramgg_client Setup <version>.exe`。
+1. 从本 fork 的 [Releases](https://github.com/orangelee89/aramgg_client/releases/latest) 下载安装包：Windows 用 `aramgg_client-Setup-<version>-win-x64-4K-fork.exe`；macOS 用 `aramgg_client-<version>-mac-arm64.dmg`（Apple 芯片）或 `-mac-x64.dmg`（Intel），未签名，首次运行需右键"打开"，并授予"屏幕录制"权限。
 2. 安装并启动 ARAMGG 助手，再启动 League Client。应用会优先从运行中的客户端自动发现 LCU。
 3. 进入极地大乱斗：选人阶段查看英雄详情与席位建议；进入对局后等待海克斯界面出现。
 4. 自动识别失败时可按 `F1` 手动截图分析。

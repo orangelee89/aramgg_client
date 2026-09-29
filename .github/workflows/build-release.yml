@@ -1,0 +1,84 @@
+name: Build release packages
+
+# 推送 fork-* 标签（或手动触发）时，在 GitHub 的 Windows / macOS 机器上分别打包，
+# 产物上传为 artifact；打标签时同时挂到同名 Release。macOS 包只能在 macOS 上构建。
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'fork-*'
+      - 'mac-*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+          node node_modules/electron/install.js
+      - name: Prepare client data
+        run: npm run prepare:client-data
+      - name: Build renderer and main
+        run: npm run build
+      - name: Package for Windows
+        run: npx electron-builder --win --publish never
+      - name: Rename installer
+        shell: bash
+        run: |
+          cd build
+          for f in *Setup*.exe; do mv "$f" "aramgg_client-Setup-$(node -p "require('../package.json').version")-win-x64-4K-fork.exe"; done
+          ls -la *.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aramgg_client-windows
+          path: build/*.exe
+          if-no-files-found: error
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.exe
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+          node node_modules/electron/install.js
+      - name: Prepare client data
+        run: npm run prepare:client-data
+      - name: Build renderer and main
+        run: npm run build
+      - name: Package for macOS
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac --publish never
+      - name: List artifacts
+        run: ls -la build | grep -Ei 'dmg|zip' || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aramgg_client-mac
+          path: |
+            build/*.dmg
+            build/*.zip
+          if-no-files-found: error
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/*.dmg
+            build/*.zip
