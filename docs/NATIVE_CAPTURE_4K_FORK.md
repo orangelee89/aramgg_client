@@ -54,3 +54,13 @@ npm run lint
 npm run test:augment-ocr
 npm run pack
 ```
+
+## macOS 版本
+
+- 构建：`.github/workflows/build-mac.yml` 在 GitHub 的 macOS 机器上打包（Actions 页面手动触发，或推送 `mac-*` 标签自动挂到 Release）。
+  产物为 `aramgg_client-<版本>-mac-arm64.dmg/.zip`（Apple 芯片）和 `-x64`（Intel），未签名，首次运行需右键"打开"。
+- 抓屏需在"系统设置 → 隐私与安全性 → 屏幕录制"里授权。
+- 客户端凭据：`ps -axo pid=,command=` 查找 `LeagueClientUx` 进程命令行；找不到时读
+  `/Applications/League of Legends.app/Contents/LoL/lockfile`。
+- 浮窗在 macOS 上设置 `visibleOnFullScreen`，以便覆盖全屏游戏；游戏内实际表现需在真机验证。
+- 打包配置注意：平台文件集（`mac.files`）只能写正向规则；只写排除项会被 electron-builder 当作"包含全部文件"，把整个仓库打进 asar。
