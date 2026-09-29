@@ -55,10 +55,17 @@ npm run test:augment-ocr
 npm run pack
 ```
 
+## 发布（Windows + macOS）
+
+- `.github/workflows/build-release.yml`：推送 `fork-*` 标签（如 `fork-v0.2.17-1`）或在 Actions 页面手动触发，
+  GitHub 的 Windows / macOS 机器分别打包并挂到同名 Release：
+  - `aramgg_client-Setup-<版本>-win-x64-4K-fork.exe`
+  - `aramgg_client-<版本>-mac-arm64.dmg/.zip`（Apple 芯片）、`-mac-x64`（Intel）
+- 下载页：https://github.com/orangelee89/aramgg_client/releases/latest
+
 ## macOS 版本
 
-- 构建：`.github/workflows/build-mac.yml` 在 GitHub 的 macOS 机器上打包（Actions 页面手动触发，或推送 `mac-*` 标签自动挂到 Release）。
-  产物为 `aramgg_client-<版本>-mac-arm64.dmg/.zip`（Apple 芯片）和 `-x64`（Intel），未签名，首次运行需右键"打开"。
+- 未签名，首次运行需右键"打开"。
 - 抓屏需在"系统设置 → 隐私与安全性 → 屏幕录制"里授权。
 - 客户端凭据：`ps -axo pid=,command=` 查找 `LeagueClientUx` 进程命令行；找不到时读
   `/Applications/League of Legends.app/Contents/LoL/lockfile`。
