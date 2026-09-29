@@ -60,7 +60,7 @@ npm run pack
 - `.github/workflows/build-release.yml`：推送 `fork-*` 标签（如 `fork-v0.2.17-1`）或在 Actions 页面手动触发，
   GitHub 的 Windows / macOS 机器分别打包并挂到同名 Release：
   - `aramgg_client-Setup-<版本>-win-x64-4K-fork.exe`
-  - `aramgg_client-<版本>-mac-arm64.dmg/.zip`（Apple 芯片）、`-mac-x64`（Intel）
+  - `aramgg_client-<版本>-mac-arm64.dmg/.zip`（仅 Apple 芯片 M 系列，不再出 Intel 包）
 - 下载页：https://github.com/orangelee89/aramgg_client/releases/latest
 
 ## macOS 版本

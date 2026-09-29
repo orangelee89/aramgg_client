@@ -65,7 +65,7 @@
 
 ## 安装与使用
 
-1. 从本 fork 的 [Releases](https://github.com/orangelee89/aramgg_client/releases/latest) 下载安装包：Windows 用 `aramgg_client-Setup-<version>-win-x64-4K-fork.exe`；macOS 用 `aramgg_client-<version>-mac-arm64.dmg`（Apple 芯片）或 `-mac-x64.dmg`（Intel），未签名，首次运行需右键"打开"，并授予"屏幕录制"权限。
+1. 从本 fork 的 [Releases](https://github.com/orangelee89/aramgg_client/releases/latest) 下载安装包：Windows 用 `aramgg_client-Setup-<version>-win-x64-4K-fork.exe`；macOS（仅 Apple 芯片 M 系列）用 `aramgg_client-<version>-mac-arm64.dmg`，未签名，首次运行需右键"打开"，并授予"屏幕录制"权限。
 2. 安装并启动 ARAMGG 助手，再启动 League Client。应用会优先从运行中的客户端自动发现 LCU。
 3. 进入极地大乱斗：选人阶段查看英雄详情与席位建议；进入对局后等待海克斯界面出现。
 4. 自动识别失败时可按 `F1` 手动截图分析。

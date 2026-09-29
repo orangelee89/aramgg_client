@@ -39,7 +39,6 @@
       "node_modules/paddleocr/**/*",
       "node_modules/node-screenshots/**/*",
       "node_modules/node-screenshots-win32-x64-msvc/**/*",
-      "node_modules/node-screenshots-darwin-x64/**/*",
       "node_modules/node-screenshots-darwin-arm64/**/*"
     ],
     "afterPack": "scripts/after-pack.cjs",
@@ -114,15 +113,13 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         }
       ],
