@@ -611,8 +611,9 @@ const HORSE_HONOR_REASON_KEYS = {
   lowKda: 'postGame.horseLowKdaLine',
 }
 
-// 拼名的固定顺序："悍"永远紧挨着最后的"马"；领头/外不进名字（已在上方口头禅行显示）。
-const HORSE_HONOR_ORDER = ['leader', 'tank', 'kills', 'assists', 'heal', 'control', 'deaths', 'top', 'lowKda']
+// 拼名的固定顺序："死"永远紧挨着最后的"马"，"悍"排在它前面（两个都有就是"悍死马"）；
+// 领头/外不进名字（已在上方口头禅行显示）。
+const HORSE_HONOR_ORDER = ['leader', 'tank', 'kills', 'assists', 'heal', 'control', 'top', 'deaths', 'lowKda']
 // 已用口头禅大字表达的殊荣：MVP →"个斑马!"，KDA 最低 →"外马???"
 const HEADLINED_HONORS = ['leader', 'lowKda']
 // 称号大字这一行的高度（没有称号行时面板相应缩短）
