@@ -286,14 +286,17 @@ export function computeHorseRatings(players: RatingPlayerInput[]): Map<string, H
     }
 
     for (const { honor, stat } of HONOR_STATS) {
-      const best = Math.max(0, ...members.map((player) => toNumber(player.stats?.[stat])))
+      // 外马：MVP（个斑马）不参与；在其余队员里必须同时是死亡最多且 KDA 最低，否则本局没有外马。
+      const pool = honor === 'deaths'
+        ? members.filter((player) => !ratings.get(player.key)!.honors.includes('leader'))
+        : members
+      const best = Math.max(0, ...pool.map((player) => toNumber(player.stats?.[stat])))
       if (best <= 0) {
         continue
       }
-      let winners = members.filter((player) => toNumber(player.stats?.[stat]) === best)
-      // 外马（死亡最多）：死亡数并列时，只给 KDA 更低的那个
-      if (honor === 'deaths' && winners.length > 1) {
-        const lowestKda = Math.min(...winners.map((player) => readKda(player.stats)))
+      let winners = pool.filter((player) => toNumber(player.stats?.[stat]) === best)
+      if (honor === 'deaths') {
+        const lowestKda = Math.min(...pool.map((player) => readKda(player.stats)))
         winners = winners.filter((player) => readKda(player.stats) === lowestKda)
       }
       winners.forEach((player) => {

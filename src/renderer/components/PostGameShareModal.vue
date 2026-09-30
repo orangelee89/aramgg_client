@@ -556,25 +556,29 @@ function drawDamageCompare(ctx, top, players, images) {
       ctx.stroke()
     }
 
-    // 左栏三行：英雄名 / 玩家名 / 称号徽标，宽度固定到柱子起点之前，互不重叠。
+    // 左栏：英雄名 / 玩家名 / 称号徽标（个斑马!、外马??? 各自一个框，其余殊荣一个鎏金框），
+    // 宽度固定到柱子起点之前；徽标放不下一行时换成两行，整栏上移压紧。
     const labelX = x + 82
     const labelMaxWidth = barX - labelX - 14
+    const badgeLines = player.rating ? layoutHorseBadges(ctx, getHorseBadges(player.rating), labelMaxWidth) : []
+    const compact = badgeLines.length > 1
     drawCircularImage(ctx, images[index], x + 48, centerY, 22, displayName)
-    drawText(ctx, displayName, labelX, centerY - 18, {
+    drawText(ctx, displayName, labelX, centerY + (compact ? -26 : -18), {
       size: 20,
       weight: 800,
       color: nameColor,
       maxWidth: labelMaxWidth,
     })
-    drawText(ctx, summonerName, labelX, centerY + 2, {
+    drawText(ctx, summonerName, labelX, centerY + (compact ? -8 : 2), {
       size: 15,
       weight: 600,
       color: 'rgba(214, 226, 238, 0.6)',
       maxWidth: labelMaxWidth,
     })
-    if (player.rating) {
-      drawHorseBadge(ctx, player.rating, labelX, centerY + 22, labelMaxWidth)
-    }
+    badgeLines.forEach((line, lineIndex) => {
+      const lineCenterY = compact ? centerY + 12 + lineIndex * 23 : centerY + 22
+      drawHorseBadgeLine(ctx, line, labelX, lineCenterY)
+    })
 
     const dealt = safeNumber(player.stats?.damageDealtToChampions)
     const taken = safeNumber(player.stats?.damageTaken)
@@ -822,15 +826,73 @@ function drawHorseTitlePanel(ctx, rating, top) {
   })
 }
 
-function drawHorseBadge(ctx, rating, x, centerY, maxWidth = null) {
-  const label = getHorseTitleLabel(rating)
-  if (!label) return
+const BADGE_FONT_SIZE = 13
+const BADGE_HEIGHT = 22
+const BADGE_GAP = 6
 
-  ctx.font = `800 13px ${FONT_FAMILY}`
-  const width = Math.min(ctx.measureText(label).width + 16, maxWidth || Number.POSITIVE_INFINITY)
-  fillRoundedRect(ctx, x, centerY - 11, width, 22, 11, 'rgba(242, 201, 76, 0.14)')
-  strokeRoundedRect(ctx, x, centerY - 11, width, 22, 11, 'rgba(242, 201, 76, 0.5)')
-  drawGoldenText(ctx, label, x + width / 2, centerY + 1, { size: 13, weight: 800, align: 'center', baseline: 'middle', maxWidth: width - 12 })
+/**
+ * 对比图里一个玩家的徽标：MVP →"个斑马!"（钻石框）、死亡最多 →"外马???"（白框）、
+ * 其余殊荣拼成一个鎏金框（没有任何殊荣时是"普通马"）。
+ */
+function getHorseBadges(rating) {
+  const honors = getHorseHonors(rating)
+  const badges = []
+  if (honors.includes('leader')) badges.push({ text: t('postGame.horseHeadlineLeader'), style: 'diamond' })
+  if (honors.includes('deaths')) badges.push({ text: t('postGame.horseHeadlineDeaths'), style: 'white' })
+  const label = getHorseTitleLabel(rating, { excludeHeadlined: true })
+  if (label) badges.push({ text: label, style: 'gold' })
+  return badges
+}
+
+/** 徽标按宽度贪心排成最多两行；单个徽标超宽时截到 maxWidth。 */
+function layoutHorseBadges(ctx, badges, maxWidth) {
+  ctx.font = `800 ${BADGE_FONT_SIZE}px ${FONT_FAMILY}`
+  const lines = []
+  let current = []
+  let used = 0
+  for (const badge of badges) {
+    const width = Math.min(ctx.measureText(badge.text).width + 16, maxWidth)
+    const needed = current.length ? used + BADGE_GAP + width : width
+    if (current.length && needed > maxWidth) {
+      lines.push(current)
+      current = []
+      used = 0
+      if (lines.length === 2) break
+    }
+    current.push({ ...badge, width })
+    used = current.length === 1 ? width : used + BADGE_GAP + width
+  }
+  if (current.length && lines.length < 2) lines.push(current)
+  return lines
+}
+
+function drawHorseBadgeLine(ctx, line, x, centerY) {
+  let cursor = x
+  for (const badge of line) {
+    drawHorseBadge(ctx, badge, cursor, centerY)
+    cursor += badge.width + BADGE_GAP
+  }
+}
+
+function drawHorseBadge(ctx, badge, x, centerY) {
+  const { text, style, width } = badge
+  const top = centerY - BADGE_HEIGHT / 2
+  const textOptions = { size: BADGE_FONT_SIZE, weight: 800, align: 'center', baseline: 'middle' }
+  if (style === 'diamond') {
+    fillRoundedRect(ctx, x, top, width, BADGE_HEIGHT, 11, 'rgba(160, 230, 255, 0.14)')
+    strokeRoundedRect(ctx, x, top, width, BADGE_HEIGHT, 11, 'rgba(190, 240, 255, 0.7)')
+    drawDiamondText(ctx, text, x + width / 2, centerY + 1, textOptions)
+    return
+  }
+  if (style === 'white') {
+    fillRoundedRect(ctx, x, top, width, BADGE_HEIGHT, 11, 'rgba(255, 255, 255, 0.12)')
+    strokeRoundedRect(ctx, x, top, width, BADGE_HEIGHT, 11, 'rgba(255, 255, 255, 0.75)')
+    drawWhiteText(ctx, text, x + width / 2, centerY + 1, textOptions)
+    return
+  }
+  fillRoundedRect(ctx, x, top, width, BADGE_HEIGHT, 11, 'rgba(242, 201, 76, 0.14)')
+  strokeRoundedRect(ctx, x, top, width, BADGE_HEIGHT, 11, 'rgba(242, 201, 76, 0.5)')
+  drawGoldenText(ctx, text, x + width / 2, centerY + 1, { ...textOptions, maxWidth: width - 12 })
 }
 
 function drawStatCell(ctx, x, y, width, height, label, value, accent) {

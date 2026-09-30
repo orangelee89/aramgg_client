@@ -26,9 +26,32 @@ describe('post-game horse honors', () => {
     expect(ratings.get('carry')?.score).toBeGreaterThan(ratings.get('tank')!.score)
     expect(ratings.get('tank')?.honors).toEqual(['tank', 'assists', 'control'])
     expect(ratings.get('feeder')?.honors).toEqual(['deaths'])
-    expect(ratings.get('enemy')?.honors).toEqual(['leader', 'top', 'tank', 'kills', 'deaths'])
-    expect(ratings.get('enemy2')?.honors).toEqual(['assists'])
+    // enemy 是 MVP，不参与外马；剩下只有 enemy2，死亡最多且 KDA 最低
+    expect(ratings.get('enemy')?.honors).toEqual(['leader', 'top', 'tank', 'kills'])
+    expect(ratings.get('enemy2')?.honors).toEqual(['assists', 'deaths'])
     expect(ratings.get('carry')?.playerCount).toBe(5)
+  })
+
+  it('gives no 外马 when the most-deaths player is not also the lowest KDA', () => {
+    const ratings = computeHorseRatings([
+      player('tank', 'ORDER', { kills: 2, deaths: 10, assists: 25, damageDealtToChampions: 15000, damageTaken: 70000 }),
+      player('feeder', 'ORDER', { kills: 1, deaths: 8, assists: 2, damageDealtToChampions: 12000, damageTaken: 20000 }),
+      player('carry', 'ORDER', { kills: 12, deaths: 3, assists: 10, damageDealtToChampions: 60000, damageTaken: 20000 }),
+    ])
+
+    const withDeaths = [...ratings.values()].filter((rating) => rating.honors.includes('deaths'))
+    expect(withDeaths).toHaveLength(0)
+  })
+
+  it('never gives 外马 to the MVP even if they died the most', () => {
+    const ratings = computeHorseRatings([
+      player('mvp', 'ORDER', { kills: 15, deaths: 16, assists: 15, damageDealtToChampions: 70000, damageTaken: 40000 }),
+      player('mate', 'ORDER', { kills: 3, deaths: 9, assists: 8, damageDealtToChampions: 20000, damageTaken: 20000 }),
+    ])
+
+    expect(ratings.get('mvp')?.honors).toContain('leader')
+    expect(ratings.get('mvp')?.honors).not.toContain('deaths')
+    expect(ratings.get('mate')?.honors).toContain('deaths')
   })
 
   it('breaks a most-deaths tie by giving 外马 to the lower KDA', () => {
