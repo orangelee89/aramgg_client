@@ -605,8 +605,12 @@ const HORSE_HONOR_REASON_KEYS = {
   deaths: 'postGame.horseReasonDeaths',
 }
 
-// 拼名的固定顺序："板"永远紧挨着最后的"马"。
-const HORSE_HONOR_ORDER = ['leader', 'top', 'tank', 'kills', 'assists', 'heal', 'control', 'deaths']
+// 拼名的固定顺序："悍"永远紧挨着最后的"马"；领头/板不进名字（已在上方口头禅行显示）。
+const HORSE_HONOR_ORDER = ['leader', 'tank', 'kills', 'assists', 'heal', 'control', 'top', 'deaths']
+// 已用口头禅大字表达的殊荣：MVP →"个斑马!"，死亡最多 →"外马???"
+const HEADLINED_HONORS = ['leader', 'deaths']
+// 称号大字这一行的高度（没有称号行时面板相应缩短）
+const TITLE_PANEL_NAME_HEIGHT = 60
 
 function getHorseHonors(rating) {
   const honors = Array.isArray(rating?.honors) ? rating.honors.filter((honor) => HORSE_HONOR_PART_KEYS[honor]) : []
@@ -614,11 +618,15 @@ function getHorseHonors(rating) {
 }
 
 /**
- * 称号名：把拿到的殊荣按顺序拼起来再加"马"，如"上等死马"；没有殊荣是"普通马"。
+ * 称号名：把拿到的殊荣按顺序拼起来再加"马"，如"陀螺悍马"；没有殊荣是"普通马"。
+ * 面板里（`excludeHeadlined`）领头/板不进名字，因为上面已经有"个斑马!"/"外马???"；
+ * 只拿了这两项时返回空串，面板不画称号行。小徽章仍用完整名字。
  */
-function getHorseTitleLabel(rating) {
+function getHorseTitleLabel(rating, { excludeHeadlined = false } = {}) {
   if (!rating) return ''
-  const honors = getHorseHonors(rating)
+  const allHonors = getHorseHonors(rating)
+  const honors = excludeHeadlined ? allHonors.filter((honor) => !HEADLINED_HONORS.includes(honor)) : allHonors
+  if (!honors.length && allHonors.length) return ''
   const parts = honors.length
     ? honors.map((honor) => t(HORSE_HONOR_PART_KEYS[honor]))
     : [t('postGame.horsePartNormal')]
@@ -637,17 +645,15 @@ function getHorseTitleReasonLines(rating) {
     if (honor === 'deaths') {
       return t('postGame.horseDeathsLine', { value: String(Math.round(Number(value) || 0)) })
     }
-    const name = t('postGame.horseName', { parts: t(HORSE_HONOR_PART_KEYS[honor]) })
-    let reason
     if (honor === 'leader') {
       const bonus = Number(rating.itemBonus || 0) > 0 ? t('postGame.horseLeaderBonus') : ''
-      reason = t(HORSE_HONOR_REASON_KEYS[honor], { value: Number(value || 0).toFixed(1), bonus })
-    } else {
-      const formatted = honor === 'top' || honor === 'tank' || honor === 'heal'
-        ? formatLargeNumber(value)
-        : String(Math.round(Number(value) || 0))
-      reason = t(HORSE_HONOR_REASON_KEYS[honor], { value: formatted })
+      return t('postGame.horseLeaderLine', { value: Number(value || 0).toFixed(1), bonus })
     }
+    const name = t('postGame.horseName', { parts: t(HORSE_HONOR_PART_KEYS[honor]) })
+    const formatted = honor === 'top' || honor === 'tank' || honor === 'heal'
+      ? formatLargeNumber(value)
+      : String(Math.round(Number(value) || 0))
+    const reason = t(HORSE_HONOR_REASON_KEYS[honor], { value: formatted })
     return t('postGame.horseReasonLine', { name, reason })
   })
 }
@@ -666,7 +672,9 @@ function getHorseHeadlines(rating) {
 
 function getHorseTitlePanelHeight(rating) {
   if (!rating) return 0
+  const nameHeight = getHorseTitleLabel(rating, { excludeHeadlined: true }) ? 0 : -TITLE_PANEL_NAME_HEIGHT
   return TITLE_PANEL_BASE_HEIGHT
+    + nameHeight
     + getHorseHeadlines(rating).length * TITLE_PANEL_HEADLINE_HEIGHT
     + getHorseTitleReasonLines(rating).length * TITLE_PANEL_LINE_HEIGHT
 }
@@ -776,8 +784,8 @@ function drawHorseTitlePanel(ctx, rating, top) {
   const x = 52
   const width = 646
   const height = getHorseTitlePanelHeight(rating)
-  const label = getHorseTitleLabel(rating)
-  if (!label) return
+  const label = getHorseTitleLabel(rating, { excludeHeadlined: true })
+  if (!rating) return
 
   fillRoundedRect(ctx, x, top, width, height, 24, 'rgba(242, 201, 76, 0.07)')
   strokeRoundedRect(ctx, x, top, width, height, 24, 'rgba(242, 201, 76, 0.28)')
@@ -796,12 +804,16 @@ function drawHorseTitlePanel(ctx, rating, top) {
       drawWhiteText(ctx, headline.text, x + 32, y, { size: 46 })
     }
   })
-  const headlineShift = headlines.length * TITLE_PANEL_HEADLINE_HEIGHT
+  let shift = headlines.length * TITLE_PANEL_HEADLINE_HEIGHT
 
-  const labelSize = label.length > 6 ? 40 : 50
-  drawGoldenText(ctx, label, x + 32, top + 98 + headlineShift, { size: labelSize, align: 'left', maxWidth: width - 64 })
+  if (label) {
+    const labelSize = label.length > 6 ? 40 : 50
+    drawGoldenText(ctx, label, x + 32, top + 98 + shift, { size: labelSize, align: 'left', maxWidth: width - 64 })
+  } else {
+    shift -= TITLE_PANEL_NAME_HEIGHT
+  }
   getHorseTitleReasonLines(rating).forEach((line, index) => {
-    drawText(ctx, line, x + 32, top + 134 + headlineShift + index * TITLE_PANEL_LINE_HEIGHT, {
+    drawText(ctx, line, x + 32, top + 134 + shift + index * TITLE_PANEL_LINE_HEIGHT, {
       size: 17,
       weight: 700,
       color: 'rgba(246, 236, 210, 0.78)',
