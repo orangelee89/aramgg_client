@@ -131,6 +131,8 @@ let toastTimer = null
 const COMPARE_STORE_KEY = 'postGameShare.comparePlayers'
 // 称号面板：标题 + 鎏金称号占 118px，之后每个殊荣一行描述。
 const TITLE_PANEL_BASE_HEIGHT = 118
+// 称号大字上方的口头禅一行（MVP“个斑马!”/ 死最多“外马???”）
+const TITLE_PANEL_HEADLINE_HEIGHT = 58
 const TITLE_PANEL_LINE_HEIGHT = 24
 const TITLE_PANEL_GAP = 22
 const CHART_TOP = 774
@@ -631,6 +633,10 @@ function getHorseTitleReasonLines(rating) {
   if (!honors.length) return [t('postGame.horseReasonNormal')]
   return honors.map((honor) => {
     const value = rating.honorValues?.[honor]
+    // 死亡最多这一行整句是口头禅："外马？死亡次数 N 次，全队最多？"
+    if (honor === 'deaths') {
+      return t('postGame.horseDeathsLine', { value: String(Math.round(Number(value) || 0)) })
+    }
     const name = t('postGame.horseName', { parts: t(HORSE_HONOR_PART_KEYS[honor]) })
     let reason
     if (honor === 'leader') {
@@ -646,9 +652,23 @@ function getHorseTitleReasonLines(rating) {
   })
 }
 
+/**
+ * 称号上方的口头禅：MVP 一行“个斑马!”（钻石光泽），死亡最多一行“外马???”（白色）。
+ * 两个都拿到就两行，MVP 在前。
+ */
+function getHorseHeadlines(rating) {
+  const honors = getHorseHonors(rating)
+  const headlines = []
+  if (honors.includes('leader')) headlines.push({ text: t('postGame.horseHeadlineLeader'), style: 'diamond' })
+  if (honors.includes('deaths')) headlines.push({ text: t('postGame.horseHeadlineDeaths'), style: 'white' })
+  return headlines
+}
+
 function getHorseTitlePanelHeight(rating) {
   if (!rating) return 0
-  return TITLE_PANEL_BASE_HEIGHT + getHorseTitleReasonLines(rating).length * TITLE_PANEL_LINE_HEIGHT
+  return TITLE_PANEL_BASE_HEIGHT
+    + getHorseHeadlines(rating).length * TITLE_PANEL_HEADLINE_HEIGHT
+    + getHorseTitleReasonLines(rating).length * TITLE_PANEL_LINE_HEIGHT
 }
 
 /**
@@ -694,7 +714,63 @@ function drawGoldenText(ctx, text, x, y, options = {}) {
 }
 
 /**
- * "本局称号"模块：放在战绩栏上方，标题小字 + 鎏金大字称号，下方一行获奖原因。
+ * 钻石光泽字：冰白→淡青→淡紫的冷色渐变 + 青白外发光 + 高光描边，用于 MVP 的“个斑马!”。
+ */
+function drawDiamondText(ctx, text, x, y, options = {}) {
+  const { size = 44, weight = 900, align = 'left', baseline = 'alphabetic' } = options
+  ctx.save()
+  ctx.font = `${weight} ${size}px ${FONT_FAMILY}`
+  ctx.textAlign = align
+  ctx.textBaseline = baseline
+  const output = String(text || '')
+  const textWidth = ctx.measureText(output).width
+  const left = align === 'right' ? x - textWidth : align === 'center' ? x - textWidth / 2 : x
+
+  ctx.shadowColor = 'rgba(160, 230, 255, 0.85)'
+  ctx.shadowBlur = 24
+  ctx.fillStyle = 'rgba(160, 230, 255, 0.35)'
+  ctx.fillText(output, x, y)
+
+  ctx.shadowBlur = 0
+  ctx.shadowColor = 'transparent'
+  const gradient = ctx.createLinearGradient(left, y - size, left + textWidth, y + size * 0.3)
+  gradient.addColorStop(0, '#ffffff')
+  gradient.addColorStop(0.22, '#b9f3ff')
+  gradient.addColorStop(0.42, '#ffffff')
+  gradient.addColorStop(0.6, '#c9c4ff')
+  gradient.addColorStop(0.8, '#8fd8ff')
+  gradient.addColorStop(1, '#e8fbff')
+  ctx.fillStyle = gradient
+  ctx.fillText(output, x, y)
+
+  ctx.lineWidth = 1.2
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+  ctx.strokeText(output, x, y)
+  ctx.restore()
+}
+
+/**
+ * 白字：纯白 + 柔和白色外发光，用于死亡最多的“外马???”。
+ */
+function drawWhiteText(ctx, text, x, y, options = {}) {
+  const { size = 44, weight = 900, align = 'left', baseline = 'alphabetic' } = options
+  ctx.save()
+  ctx.font = `${weight} ${size}px ${FONT_FAMILY}`
+  ctx.textAlign = align
+  ctx.textBaseline = baseline
+  const output = String(text || '')
+  ctx.shadowColor = 'rgba(255, 255, 255, 0.6)'
+  ctx.shadowBlur = 18
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText(output, x, y)
+  ctx.shadowBlur = 0
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText(output, x, y)
+  ctx.restore()
+}
+
+/**
+ * "本局称号"模块：放在战绩栏上方，标题小字 → 口头禅大字（可无）→ 鎏金称号 → 每个殊荣一行原因。
  */
 function drawHorseTitlePanel(ctx, rating, top) {
   const x = 52
@@ -710,10 +786,22 @@ function drawHorseTitlePanel(ctx, rating, top) {
     weight: 800,
     color: '#e7bd68',
   })
+
+  const headlines = getHorseHeadlines(rating)
+  headlines.forEach((headline, index) => {
+    const y = top + 96 + index * TITLE_PANEL_HEADLINE_HEIGHT
+    if (headline.style === 'diamond') {
+      drawDiamondText(ctx, headline.text, x + 32, y, { size: 46 })
+    } else {
+      drawWhiteText(ctx, headline.text, x + 32, y, { size: 46 })
+    }
+  })
+  const headlineShift = headlines.length * TITLE_PANEL_HEADLINE_HEIGHT
+
   const labelSize = label.length > 6 ? 40 : 50
-  drawGoldenText(ctx, label, x + 32, top + 98, { size: labelSize, align: 'left', maxWidth: width - 64 })
+  drawGoldenText(ctx, label, x + 32, top + 98 + headlineShift, { size: labelSize, align: 'left', maxWidth: width - 64 })
   getHorseTitleReasonLines(rating).forEach((line, index) => {
-    drawText(ctx, line, x + 32, top + 134 + index * TITLE_PANEL_LINE_HEIGHT, {
+    drawText(ctx, line, x + 32, top + 134 + headlineShift + index * TITLE_PANEL_LINE_HEIGHT, {
       size: 17,
       weight: 700,
       color: 'rgba(246, 236, 210, 0.78)',
