@@ -31,6 +31,18 @@ describe('post-game horse honors', () => {
     expect(ratings.get('carry')?.playerCount).toBe(5)
   })
 
+  it('breaks a most-deaths tie by giving 外马 to the lower KDA', () => {
+    const ratings = computeHorseRatings([
+      player('tank', 'ORDER', { kills: 2, deaths: 9, assists: 25, damageDealtToChampions: 15000, damageTaken: 70000 }),
+      player('feeder', 'ORDER', { kills: 3, deaths: 9, assists: 4, damageDealtToChampions: 20000, damageTaken: 20000 }),
+      player('carry', 'ORDER', { kills: 12, deaths: 3, assists: 10, damageDealtToChampions: 60000, damageTaken: 20000 }),
+    ])
+
+    expect(ratings.get('feeder')?.honors).toContain('deaths')
+    expect(ratings.get('tank')?.honors).not.toContain('deaths')
+    expect(ratings.get('feeder')?.honorValues.deaths).toBe(9)
+  })
+
   it('redistributes weight for metrics nobody on the team has', () => {
     const ratings = computeHorseRatings([
       player('a', 'ORDER', { kills: 5, deaths: 2, assists: 5, damageDealtToChampions: 30000, damageTaken: 30000 }),

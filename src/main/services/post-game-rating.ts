@@ -147,6 +147,15 @@ const HONOR_STATS: Array<{ honor: Exclude<HorseHonor, 'leader'>; stat: keyof Rat
   { honor: 'deaths', stat: 'deaths' },
 ]
 
+/** KDA：优先用 EOG 给的 kda 字段，没有就按 (K+A)/max(1,D) 算。 */
+function readKda(stats: Partial<RatingStatBlock> | null | undefined): number {
+  const given = toNumber(stats?.kda)
+  if (given > 0) {
+    return given
+  }
+  return (toNumber(stats?.kills) + toNumber(stats?.assists)) / Math.max(1, toNumber(stats?.deaths))
+}
+
 function toNumber(value: unknown): number {
   const numberValue = Number(value)
   return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : 0
@@ -280,10 +289,13 @@ export function computeHorseRatings(players: RatingPlayerInput[]): Map<string, H
       if (best <= 0) {
         continue
       }
-      members.forEach((player) => {
-        if (toNumber(player.stats?.[stat]) !== best) {
-          return
-        }
+      let winners = members.filter((player) => toNumber(player.stats?.[stat]) === best)
+      // 外马（死亡最多）：死亡数并列时，只给 KDA 更低的那个
+      if (honor === 'deaths' && winners.length > 1) {
+        const lowestKda = Math.min(...winners.map((player) => readKda(player.stats)))
+        winners = winners.filter((player) => readKda(player.stats) === lowestKda)
+      }
+      winners.forEach((player) => {
         const rating = ratings.get(player.key)!
         rating.honors.push(honor)
         rating.honorValues[honor] = best
