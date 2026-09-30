@@ -9,7 +9,7 @@
  * - 一项都不沾的是"普通马"。并列最高时都算。
  */
 
-export type HorseHonor = 'leader' | 'top' | 'tank' | 'kills' | 'assists' | 'heal' | 'control' | 'deaths'
+export type HorseHonor = 'leader' | 'top' | 'tank' | 'kills' | 'assists' | 'heal' | 'control' | 'deaths' | 'lowKda'
 
 export type RatingStatBlock = {
   kills?: number | null
@@ -138,7 +138,7 @@ export const SHIELDING_CHAMPION_IDS = new Set([
   245, // 艾克
 ])
 
-const HONOR_STATS: Array<{ honor: Exclude<HorseHonor, 'leader'>; stat: keyof RatingStatBlock }> = [
+const HONOR_STATS: Array<{ honor: Exclude<HorseHonor, 'leader' | 'lowKda'>; stat: keyof RatingStatBlock }> = [
   { honor: 'top', stat: 'damageDealtToChampions' },
   { honor: 'tank', stat: 'damageTaken' },
   { honor: 'kills', stat: 'kills' },
@@ -286,23 +286,31 @@ export function computeHorseRatings(players: RatingPlayerInput[]): Map<string, H
     }
 
     for (const { honor, stat } of HONOR_STATS) {
-      // 外马：MVP（个斑马）不参与；在其余队员里必须同时是死亡最多且 KDA 最低，否则本局没有外马。
-      const pool = honor === 'deaths'
-        ? members.filter((player) => !ratings.get(player.key)!.honors.includes('leader'))
-        : members
-      const best = Math.max(0, ...pool.map((player) => toNumber(player.stats?.[stat])))
+      const best = Math.max(0, ...members.map((player) => toNumber(player.stats?.[stat])))
       if (best <= 0) {
         continue
       }
-      let winners = pool.filter((player) => toNumber(player.stats?.[stat]) === best)
-      if (honor === 'deaths') {
-        const lowestKda = Math.min(...pool.map((player) => readKda(player.stats)))
-        winners = winners.filter((player) => readKda(player.stats) === lowestKda)
-      }
-      winners.forEach((player) => {
+      members.forEach((player) => {
+        if (toNumber(player.stats?.[stat]) !== best) {
+          return
+        }
         const rating = ratings.get(player.key)!
         rating.honors.push(honor)
         rating.honorValues[honor] = best
+      })
+    }
+
+    // 外马：全队 KDA 最低的那个；MVP（个斑马）不参与。
+    const lowKdaPool = members.filter((player) => !ratings.get(player.key)!.honors.includes('leader'))
+    if (lowKdaPool.length > 0) {
+      const lowestKda = Math.min(...lowKdaPool.map((player) => readKda(player.stats)))
+      lowKdaPool.forEach((player) => {
+        if (readKda(player.stats) !== lowestKda) {
+          return
+        }
+        const rating = ratings.get(player.key)!
+        rating.honors.push('lowKda')
+        rating.honorValues.lowKda = Number(lowestKda.toFixed(2))
       })
     }
   })

@@ -596,6 +596,7 @@ const HORSE_HONOR_PART_KEYS = {
   heal: 'postGame.horsePartHeal',
   control: 'postGame.horsePartControl',
   deaths: 'postGame.horsePartDeaths',
+  lowKda: 'postGame.horsePartLowKda',
 }
 
 const HORSE_HONOR_REASON_KEYS = {
@@ -607,12 +608,13 @@ const HORSE_HONOR_REASON_KEYS = {
   heal: 'postGame.horseReasonHeal',
   control: 'postGame.horseReasonControl',
   deaths: 'postGame.horseReasonDeaths',
+  lowKda: 'postGame.horseLowKdaLine',
 }
 
-// 拼名的固定顺序："悍"永远紧挨着最后的"马"；领头/板不进名字（已在上方口头禅行显示）。
-const HORSE_HONOR_ORDER = ['leader', 'tank', 'kills', 'assists', 'heal', 'control', 'top', 'deaths']
-// 已用口头禅大字表达的殊荣：MVP →"个斑马!"，死亡最多 →"外马???"
-const HEADLINED_HONORS = ['leader', 'deaths']
+// 拼名的固定顺序："悍"永远紧挨着最后的"马"；领头/外不进名字（已在上方口头禅行显示）。
+const HORSE_HONOR_ORDER = ['leader', 'tank', 'kills', 'assists', 'heal', 'control', 'deaths', 'top', 'lowKda']
+// 已用口头禅大字表达的殊荣：MVP →"个斑马!"，KDA 最低 →"外马???"
+const HEADLINED_HONORS = ['leader', 'lowKda']
 // 称号大字这一行的高度（没有称号行时面板相应缩短）
 const TITLE_PANEL_NAME_HEIGHT = 60
 
@@ -645,9 +647,9 @@ function getHorseTitleReasonLines(rating) {
   if (!honors.length) return [t('postGame.horseReasonNormal')]
   return honors.map((honor) => {
     const value = rating.honorValues?.[honor]
-    // 死亡最多这一行整句是口头禅："外马？死亡次数 N 次，全队最多？"
-    if (honor === 'deaths') {
-      return t('postGame.horseDeathsLine', { value: String(Math.round(Number(value) || 0)) })
+    // KDA 最低这一行整句是口头禅："外马？KDA 0.38，全队最低？"
+    if (honor === 'lowKda') {
+      return t('postGame.horseLowKdaLine', { value: Number(value || 0).toFixed(2) })
     }
     if (honor === 'leader') {
       const bonus = Number(rating.itemBonus || 0) > 0 ? t('postGame.horseLeaderBonus') : ''
@@ -663,14 +665,14 @@ function getHorseTitleReasonLines(rating) {
 }
 
 /**
- * 称号上方的口头禅：MVP 一行“个斑马!”（钻石光泽），死亡最多一行“外马???”（白色）。
+ * 称号上方的口头禅：MVP 一行“个斑马!”（钻石光泽），KDA 最低一行“外马???”（白色）。
  * 两个都拿到就两行，MVP 在前。
  */
 function getHorseHeadlines(rating) {
   const honors = getHorseHonors(rating)
   const headlines = []
   if (honors.includes('leader')) headlines.push({ text: t('postGame.horseHeadlineLeader'), style: 'diamond' })
-  if (honors.includes('deaths')) headlines.push({ text: t('postGame.horseHeadlineDeaths'), style: 'white' })
+  if (honors.includes('lowKda')) headlines.push({ text: t('postGame.horseHeadlineLowKda'), style: 'white' })
   return headlines
 }
 
@@ -831,14 +833,14 @@ const BADGE_HEIGHT = 22
 const BADGE_GAP = 6
 
 /**
- * 对比图里一个玩家的徽标：MVP →"个斑马!"（钻石框）、死亡最多 →"外马???"（白框）、
+ * 对比图里一个玩家的徽标：MVP →"个斑马!"（钻石框）、KDA 最低 →"外马???"（白框）、
  * 其余殊荣拼成一个鎏金框（没有任何殊荣时是"普通马"）。
  */
 function getHorseBadges(rating) {
   const honors = getHorseHonors(rating)
   const badges = []
   if (honors.includes('leader')) badges.push({ text: t('postGame.horseHeadlineLeader'), style: 'diamond' })
-  if (honors.includes('deaths')) badges.push({ text: t('postGame.horseHeadlineDeaths'), style: 'white' })
+  if (honors.includes('lowKda')) badges.push({ text: t('postGame.horseHeadlineLowKda'), style: 'white' })
   const label = getHorseTitleLabel(rating, { excludeHeadlined: true })
   if (label) badges.push({ text: label, style: 'gold' })
   return badges
