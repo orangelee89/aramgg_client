@@ -15,6 +15,7 @@ export type RatingStatBlock = {
   kills?: number | null
   deaths?: number | null
   assists?: number | null
+  kda?: number | null
   damageDealtToChampions?: number | null
   damageTaken?: number | null
   damageSelfMitigated?: number | null
