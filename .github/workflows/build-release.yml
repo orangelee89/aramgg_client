@@ -34,11 +34,11 @@ jobs:
         shell: bash
         run: |
           cd build
-          for f in *Setup*.exe; do mv "$f" "aramgg_client-Setup-$(node -p "require('../package.json').version")-win-x64-4K-fork.exe"; done
+          for f in *Setup*.exe; do mv "$f" "aramgg_banma_city-Setup-$(node -p "require('../package.json').version")-win-x64.exe"; done
           ls -la *.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: aramgg_client-windows
+          name: aramgg_banma_city-windows
           path: build/*.exe
           if-no-files-found: error
       - name: Attach to release
@@ -70,7 +70,7 @@ jobs:
         run: ls -la build | grep -Ei 'dmg|zip' || true
       - uses: actions/upload-artifact@v4
         with:
-          name: aramgg_client-mac
+          name: aramgg_banma_city-mac
           path: |
             build/*.dmg
             build/*.zip

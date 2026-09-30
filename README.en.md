@@ -64,7 +64,7 @@
 
 ## Install and use
 
-1. Download from this fork's [Releases](https://github.com/orangelee89/aramgg_client/releases/latest): Windows `aramgg_client-Setup-<version>-win-x64-4K-fork.exe`; macOS (Apple silicon only) `aramgg_client-<version>-mac-arm64.dmg`. Builds are unsigned: right-click → Open on first launch and grant Screen Recording permission.
+1. Download from this fork's [Releases](https://github.com/orangelee89/aramgg_client/releases/latest): Windows `aramgg_banma_city-Setup-<version>-win-x64.exe`; macOS (Apple silicon only) `aramgg_banma_city-<version>-mac-arm64.dmg`. Builds are unsigned: right-click → Open on first launch and grant Screen Recording permission.
 2. Install and launch ARAMGG Assistant, then launch League Client. The app discovers LCU from the running client first.
 3. Enter ARAM: use the champion detail window during champion select, then wait for an Augment selection screen in-game.
 4. If automatic recognition misses, press `F1` to capture and analyze manually.

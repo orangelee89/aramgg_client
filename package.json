@@ -1,5 +1,5 @@
 {
-  "name": "aramgg_client",
+  "name": "aramgg_banma_city",
   "version": "0.2.17",
   "description": "Electron companion for League of Legends ARAM recommendations and augment OCR.",
   "author": "ARAMGG",
@@ -27,7 +27,7 @@
     "release:push": "git push origin master --follow-tags"
   },
   "build": {
-    "productName": "aramgg_client",
+    "productName": "aramgg_banma_city",
     "directories": {
       "output": "build"
     },
@@ -88,7 +88,7 @@
         }
       ],
       "icon": "public/icon.ico",
-      "artifactName": "aramgg_client Setup ${version}.${ext}"
+      "artifactName": "aramgg_banma_city Setup ${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -101,7 +101,7 @@
       ],
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "aramgg_client"
+      "shortcutName": "aramgg_banma_city"
     },
     "mac": {
       "category": "public.app-category.games",
@@ -123,7 +123,7 @@
           ]
         }
       ],
-      "artifactName": "aramgg_client-${version}-mac-${arch}.${ext}",
+      "artifactName": "aramgg_banma_city-${version}-mac-${arch}.${ext}",
       "files": [
         "node_modules/onnxruntime-node/bin/napi-v6/darwin/**/*"
       ],

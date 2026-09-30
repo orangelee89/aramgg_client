@@ -16,8 +16,8 @@ let stderr = ''
 try {
   await cp(source, destination, { recursive: true, verbatimSymlinks: true })
   const executable = process.platform === 'darwin'
-    ? path.join(destination, 'Contents/MacOS/aramgg_client')
-    : path.join(destination, 'aramgg_client.exe')
+    ? path.join(destination, 'Contents/MacOS/aramgg_banma_city')
+    : path.join(destination, 'aramgg_banma_city.exe')
   const userData = path.join(temporary, 'user-data')
   await mkdir(userData, { recursive: true })
   const env = { ...process.env, NODE_ENV: 'production', ARAMGG_RELEASE_SMOKE_TEST: '1',

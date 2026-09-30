@@ -57,10 +57,13 @@ npm run pack
 
 ## 发布（Windows + macOS）
 
+- 应用名：`aramgg_banma_city`（安装目录、快捷方式、安装包均用此名）。数据目录仍是安装目录旁的 `aramgg_client-data/`，
+  和旧名安装共用，升级不丢配置；旧的 `aramgg_client` 安装需手动卸载。
+
 - `.github/workflows/build-release.yml`：推送 `fork-*` 标签（如 `fork-v0.2.17-1`）或在 Actions 页面手动触发，
   GitHub 的 Windows / macOS 机器分别打包并挂到同名 Release：
-  - `aramgg_client-Setup-<版本>-win-x64-4K-fork.exe`
-  - `aramgg_client-<版本>-mac-arm64.dmg/.zip`（仅 Apple 芯片 M 系列，不再出 Intel 包）
+  - `aramgg_banma_city-Setup-<版本>-win-x64.exe`
+  - `aramgg_banma_city-<版本>-mac-arm64.dmg/.zip`（仅 Apple 芯片 M 系列，不再出 Intel 包）
 - 下载页：https://github.com/orangelee89/aramgg_client/releases/latest
 
 ## macOS 版本

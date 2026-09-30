@@ -45,6 +45,7 @@ const findGameWindow = (sources: DesktopCapturerSource[]): DesktopCapturerSource
         const name = source.name.toLowerCase()
         const isOwnWindow =
             name.includes('aramgg_client') ||
+            name.includes('aramgg_banma_city') ||
             name.includes('lol_tips_client') ||
             name.includes('champr')
 
