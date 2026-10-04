@@ -157,16 +157,19 @@ async function main() {
             .toBuffer()
         await assertFixtureResult(analyzeScreenshot, automaticCaptureBuffer, sample, '1024x576')
 
-        // 原生抓帧路径：4K RGBA 原始像素直接进分析器，不经过 PNG。
-        const { data, info } = await sharp(imagePath)
-            .resize(3840, 2160, { fit: 'fill' })
-            .ensureAlpha()
-            .raw()
-            .toBuffer({ resolveWithObject: true })
-        const nativeFrame = { buffer: data, width: info.width, height: info.height, channels: info.channels }
-        await assertFixtureResult(analyzeScreenshot, nativeFrame, sample, '3840x2160-raw')
-        if (sample.expectedCardCount > 0) {
-            await assertGateResult(analyzeScreenshotGate, nativeFrame, sample, '3840x2160-raw')
+        // 原生抓帧路径：RGBA 原始像素直接进分析器，不经过 PNG。覆盖 4K、2K、1080p 三种常见屏幕。
+        for (const [frameWidth, frameHeight] of [[3840, 2160], [2560, 1440], [1920, 1080]]) {
+            const variant = `${frameWidth}x${frameHeight}-raw`
+            const { data, info } = await sharp(imagePath)
+                .resize(frameWidth, frameHeight, { fit: 'fill' })
+                .ensureAlpha()
+                .raw()
+                .toBuffer({ resolveWithObject: true })
+            const nativeFrame = { buffer: data, width: info.width, height: info.height, channels: info.channels }
+            await assertFixtureResult(analyzeScreenshot, nativeFrame, sample, variant)
+            if (sample.expectedCardCount > 0) {
+                await assertGateResult(analyzeScreenshotGate, nativeFrame, sample, variant)
+            }
         }
     }
 }
