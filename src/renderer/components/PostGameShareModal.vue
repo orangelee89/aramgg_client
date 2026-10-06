@@ -137,7 +137,8 @@ const TITLE_PANEL_LINE_HEIGHT = 24
 const TITLE_PANEL_GAP = 22
 const CHART_TOP = 774
 const CHART_HEADER_HEIGHT = 54
-const CHART_ROW_HEIGHT = 92
+const CHART_ROW_HEIGHT = 112
+const BADGE_MAX_LINES = 3
 const CHART_BOTTOM_PADDING = 18
 const CHART_SECTION_GAP = 22
 const selectedPlayerKeys = ref([])
@@ -563,20 +564,20 @@ function drawDamageCompare(ctx, top, players, images) {
     const badgeLines = player.rating ? layoutHorseBadges(ctx, getHorseBadges(player.rating), labelMaxWidth) : []
     const compact = badgeLines.length > 1
     drawCircularImage(ctx, images[index], x + 48, centerY, 22, displayName)
-    drawText(ctx, displayName, labelX, centerY + (compact ? -26 : -18), {
+    drawText(ctx, displayName, labelX, centerY + (compact ? -36 : -18), {
       size: 20,
       weight: 800,
       color: nameColor,
       maxWidth: labelMaxWidth,
     })
-    drawText(ctx, summonerName, labelX, centerY + (compact ? -8 : 2), {
+    drawText(ctx, summonerName, labelX, centerY + (compact ? -18 : 2), {
       size: 15,
       weight: 600,
       color: 'rgba(214, 226, 238, 0.6)',
       maxWidth: labelMaxWidth,
     })
     badgeLines.forEach((line, lineIndex) => {
-      const lineCenterY = compact ? centerY + 12 + lineIndex * 23 : centerY + 22
+      const lineCenterY = compact ? centerY + 2 + lineIndex * 22 : centerY + 24
       drawHorseBadgeLine(ctx, line, labelX, lineCenterY)
     })
 
@@ -611,11 +612,13 @@ const HORSE_HONOR_REASON_KEYS = {
   lowKda: 'postGame.horseLowKdaLine',
 }
 
-// 拼名的固定顺序："死"永远紧挨着最后的"马"，"悍"排在它前面（两个都有就是"悍死马"）；
-// 领头/外不进名字（已在上方口头禅行显示）。
-const HORSE_HONOR_ORDER = ['leader', 'tank', 'kills', 'assists', 'heal', 'control', 'top', 'deaths', 'lowKda']
-// 已用口头禅大字表达的殊荣：MVP →"个斑马!"，KDA 最低 →"外马???"
+// 称号顺序：拼"马"的部件按 陀螺 → K头 → 仁慈 → 血泵 → 死 排，"死"永远紧挨着"马"；
+// 之后是独立称号（喔鸡婆 / 讨人嫌，不带"马"）；领头/外不进名字（已在上方口头禅行显示）。
+const HORSE_HONOR_ORDER = ['leader', 'tank', 'kills', 'assists', 'heal', 'deaths', 'top', 'control', 'lowKda']
+// 已用口头禅大字表达的殊荣：MVP →"个斑马!"，KDA 最低 →"怀货 外马?"
 const HEADLINED_HONORS = ['leader', 'lowKda']
+// 独立称号：整个词就是称号，不和别的部件拼、也不加"马"
+const STANDALONE_HONORS = ['top', 'control']
 // 称号大字这一行的高度（没有称号行时面板相应缩短）
 const TITLE_PANEL_NAME_HEIGHT = 60
 
@@ -624,20 +627,34 @@ function getHorseHonors(rating) {
   return HORSE_HONOR_ORDER.filter((honor) => honors.includes(honor))
 }
 
+/** 单个殊荣的称号名：拼"马"部件 →"陀螺马"，独立称号 →"喔鸡婆"。 */
+function getHonorTitleName(honor) {
+  const part = t(HORSE_HONOR_PART_KEYS[honor])
+  return STANDALONE_HONORS.includes(honor) ? part : t('postGame.horseName', { parts: part })
+}
+
 /**
- * 称号名：把拿到的殊荣按顺序拼起来再加"马"，如"陀螺悍马"；没有殊荣是"普通马"。
- * 面板里（`excludeHeadlined`）领头/板不进名字，因为上面已经有"个斑马!"/"外马???"；
- * 只拿了这两项时返回空串，面板不画称号行。小徽章仍用完整名字。
+ * 鎏金称号列表：拼"马"部件合成一个名字（如"陀螺死马"），独立称号各占一项（"喔鸡婆"、"讨人嫌"）。
+ * 领头/外不进来，因为上面已有"个斑马!"/"怀货 外马?"；只拿了这两项时返回空数组；
+ * 一个殊荣都没有时是 ["普通马"]。
  */
-function getHorseTitleLabel(rating, { excludeHeadlined = false } = {}) {
-  if (!rating) return ''
+function getHorseTitles(rating) {
+  if (!rating) return []
   const allHonors = getHorseHonors(rating)
-  const honors = excludeHeadlined ? allHonors.filter((honor) => !HEADLINED_HONORS.includes(honor)) : allHonors
-  if (!honors.length && allHonors.length) return ''
-  const parts = honors.length
-    ? honors.map((honor) => t(HORSE_HONOR_PART_KEYS[honor]))
-    : [t('postGame.horsePartNormal')]
-  return t('postGame.horseName', { parts: parts.join(t('postGame.horsePartJoiner')) })
+  const honors = allHonors.filter((honor) => !HEADLINED_HONORS.includes(honor))
+  if (!honors.length) {
+    return allHonors.length ? [] : [t('postGame.horseName', { parts: t('postGame.horsePartNormal') })]
+  }
+  const parts = honors.filter((honor) => !STANDALONE_HONORS.includes(honor)).map((honor) => t(HORSE_HONOR_PART_KEYS[honor]))
+  const titles = []
+  if (parts.length) titles.push(t('postGame.horseName', { parts: parts.join(t('postGame.horsePartJoiner')) }))
+  honors.filter((honor) => STANDALONE_HONORS.includes(honor)).forEach((honor) => titles.push(t(HORSE_HONOR_PART_KEYS[honor])))
+  return titles
+}
+
+/** 面板里的称号大字：多个称号用" · "连起来，如"陀螺死马 · 喔鸡婆 · 讨人嫌"。 */
+function getHorseTitleLabel(rating) {
+  return getHorseTitles(rating).join(' · ')
 }
 
 /**
@@ -656,7 +673,7 @@ function getHorseTitleReasonLines(rating) {
       const bonus = Number(rating.itemBonus || 0) > 0 ? t('postGame.horseLeaderBonus') : ''
       return t('postGame.horseLeaderLine', { value: Number(value || 0).toFixed(1), bonus })
     }
-    const name = t('postGame.horseName', { parts: t(HORSE_HONOR_PART_KEYS[honor]) })
+    const name = getHonorTitleName(honor)
     const formatted = honor === 'top' || honor === 'tank' || honor === 'heal'
       ? formatLargeNumber(value)
       : String(Math.round(Number(value) || 0))
@@ -679,7 +696,7 @@ function getHorseHeadlines(rating) {
 
 function getHorseTitlePanelHeight(rating) {
   if (!rating) return 0
-  const nameHeight = getHorseTitleLabel(rating, { excludeHeadlined: true }) ? 0 : -TITLE_PANEL_NAME_HEIGHT
+  const nameHeight = getHorseTitleLabel(rating) ? 0 : -TITLE_PANEL_NAME_HEIGHT
   return TITLE_PANEL_BASE_HEIGHT
     + nameHeight
     + getHorseHeadlines(rating).length * TITLE_PANEL_HEADLINE_HEIGHT
@@ -791,7 +808,7 @@ function drawHorseTitlePanel(ctx, rating, top) {
   const x = 52
   const width = 646
   const height = getHorseTitlePanelHeight(rating)
-  const label = getHorseTitleLabel(rating, { excludeHeadlined: true })
+  const label = getHorseTitleLabel(rating)
   if (!rating) return
 
   fillRoundedRect(ctx, x, top, width, height, 24, 'rgba(242, 201, 76, 0.07)')
@@ -814,7 +831,7 @@ function drawHorseTitlePanel(ctx, rating, top) {
   let shift = headlines.length * TITLE_PANEL_HEADLINE_HEIGHT
 
   if (label) {
-    const labelSize = label.length > 6 ? 40 : 50
+    const labelSize = label.length > 12 ? 32 : label.length > 6 ? 40 : 50
     drawGoldenText(ctx, label, x + 32, top + 98 + shift, { size: labelSize, align: 'left', maxWidth: width - 64 })
   } else {
     shift -= TITLE_PANEL_NAME_HEIGHT
@@ -842,12 +859,11 @@ function getHorseBadges(rating) {
   const badges = []
   if (honors.includes('leader')) badges.push({ text: t('postGame.horseHeadlineLeader'), style: 'diamond' })
   if (honors.includes('lowKda')) badges.push({ text: t('postGame.horseHeadlineLowKda'), style: 'white' })
-  const label = getHorseTitleLabel(rating, { excludeHeadlined: true })
-  if (label) badges.push({ text: label, style: 'gold' })
+  getHorseTitles(rating).forEach((title) => badges.push({ text: title, style: 'gold' }))
   return badges
 }
 
-/** 徽标按宽度贪心排成最多两行；单个徽标超宽时截到 maxWidth。 */
+/** 徽标按宽度贪心排成最多三行；单个徽标超宽时截到 maxWidth。 */
 function layoutHorseBadges(ctx, badges, maxWidth) {
   ctx.font = `800 ${BADGE_FONT_SIZE}px ${FONT_FAMILY}`
   const lines = []
@@ -860,12 +876,12 @@ function layoutHorseBadges(ctx, badges, maxWidth) {
       lines.push(current)
       current = []
       used = 0
-      if (lines.length === 2) break
+      if (lines.length === BADGE_MAX_LINES) break
     }
     current.push({ ...badge, width })
     used = current.length === 1 ? width : used + BADGE_GAP + width
   }
-  if (current.length && lines.length < 2) lines.push(current)
+  if (current.length && lines.length < BADGE_MAX_LINES) lines.push(current)
   return lines
 }
 
