@@ -10,6 +10,9 @@ import {
 
 export type TencentGlobalSnapshot = {
   fetchedAt: string
+  // 来自自建镜像时记录镜像版本号与镜像抓取时间；直连掌盟时为空。
+  mirrorHash?: string
+  sourceFetchedAt?: string
   statDate: string
   augments: TencentAugmentMeta[]
   augmentStats: TencentAugmentStat[]
@@ -18,6 +21,8 @@ export type TencentGlobalSnapshot = {
 
 export type TencentChampionSnapshot = {
   fetchedAt: string
+  mirrorHash?: string
+  sourceFetchedAt?: string
   championId: string
   augments: TencentChampionAugment[]
 }

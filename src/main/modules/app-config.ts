@@ -67,10 +67,7 @@ import {
     shouldShowAugmentTopOverlay,
 } from './user-preferences.ts'
 import { GameSessionCoordinator } from '../services/game-session/game-session-machine.ts'
-import {
-    startTencentDataAutoRefresh,
-    stopTencentDataAutoRefresh,
-} from '../services/tencent-data/tencent-data-service.ts'
+import { syncTencentDataOnStartup } from '../services/tencent-data/tencent-data-service.ts'
 import { shouldRaiseOverlayWindow } from './overlay-window-state.ts'
 import {
     GAMEFLOW_ACTIVE_CAPTURE_INTERVAL_MS,
@@ -196,7 +193,7 @@ export async function init({ startBackgroundServices = true } = {}) {
         return { mainWindow, popupWindow, toggleMainWindow }
     }
     startPerformanceMonitor()
-    startTencentDataAutoRefresh()
+    void syncTencentDataOnStartup()
 
     initializeAppUpdateService({ isDev })
     setAppUpdateInstallCleanup(() => ensureQuitCleanup('app update install'))
@@ -1436,7 +1433,6 @@ async function runQuitCleanup(reason = 'app quit') {
 
     stopGameflowMonitorRuntime('app will quit')
     stopLocalMatchHistoryBackgroundSync()
-    stopTencentDataAutoRefresh()
 
     if (autoScreenshotService && autoScreenshotService.isRunning) {
         autoScreenshotService.stop()
