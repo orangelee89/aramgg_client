@@ -16,6 +16,9 @@ export default defineConfig({
   test: {
     include: ['tests/unit/**/*.{test,spec}.{js,ts}'],
     environment: 'node',
+    env: {
+      ARAMGG_DISABLE_TENCENT_DATA: '1',
+    },
     clearMocks: true,
     restoreMocks: true,
   },

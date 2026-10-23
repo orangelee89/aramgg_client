@@ -32,6 +32,7 @@ import {
 import logger from './modules/logger.ts'
 import { ensureOnnxruntimeNativeDllPath } from './modules/onnxruntime-native-path.ts'
 import { discoverLcuAuthFromProcess } from './services/lcu/process-auth-discovery.ts'
+import { onTencentDataUpdated } from './services/tencent-data/tencent-data-service.ts'
 // 马来西亚简中（Riot zh_MY）客户端的海克斯译名与国服 zh-CN 数据大面积不同（211 个里 170 个），
 // 站点数据只有 zh-CN / zh-TW / en-US，这里内置一份 zh_MY 名字表作为 OCR 别名。
 import zhMyOcrAliases from './data/augment-ocr-aliases.zh-MY.json' with { type: 'json' }
@@ -79,6 +80,11 @@ const AUGMENT_COLORS = {
 // 加载完整的海克斯数据库
 let AUGMENT_DATABASE = null
 const loadedAugmentLocales = new Set()
+
+// 腾讯数据会新增海克斯（如新版本上线的卡），更新后让默认语言下次 OCR 时重新合并名字库。
+onTencentDataUpdated(() => {
+    loadedAugmentLocales.delete(DEFAULT_DATA_LOCALE)
+})
 const augmentLocaleLoadPromises = new Map()
 const augmentLocaleRetryAfter = new Map()
 let cachedGameOcrLocaleHint = null
