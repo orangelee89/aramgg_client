@@ -1,0 +1,70 @@
+name: Sync Tencent data
+
+# 每天从掌盟抓取一次海克斯大乱斗数据，推到 tencent-data 分支，客户端从 raw.githubusercontent.com 读取。
+# UTC 04:17 = 北京时间 12:17：避开整点高峰，掌盟前一天的数据通常已出。
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-tencent-data
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout scripts
+        uses: actions/checkout@v4
+        with:
+          path: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restore previous data
+        id: previous
+        run: |
+          mkdir -p data
+          if git -C main fetch --depth=1 origin tencent-data:refs/remotes/origin/tencent-data; then
+            git -C main archive refs/remotes/origin/tencent-data | tar -x -C data
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch from Tencent
+        run: node main/scripts/tencent-data/sync-tencent-data.mjs --out data
+
+      - name: Publish (keep only the latest commit)
+        env:
+          EXISTS: ${{ steps.previous.outputs.exists }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          set -euo pipefail
+          export GIT_DIR="$GITHUB_WORKSPACE/main/.git"
+          export GIT_WORK_TREE="$GITHUB_WORKSPACE/data"
+          export GIT_INDEX_FILE="$RUNNER_TEMP/tencent-data.index"
+          cd "$GIT_WORK_TREE"
+          if [ "$EXISTS" = "true" ]; then
+            git read-tree refs/remotes/origin/tencent-data
+          else
+            git read-tree --empty
+          fi
+          git add -A
+          if [ "$EXISTS" = "true" ] && git diff --cached --quiet refs/remotes/origin/tencent-data; then
+            echo "掌盟数据没有变化，不推送"
+            exit 0
+          fi
+          tree="$(git write-tree)"
+          commit="$(git commit-tree "$tree" -m "data: 掌盟海克斯大乱斗数据 $(date -u +%Y-%m-%dT%H:%MZ)")"
+          git push --force origin "$commit:refs/heads/tencent-data"
