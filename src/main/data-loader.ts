@@ -9,6 +9,16 @@ import {
   resolveTrustedClientDataUrl,
 } from '../shared/client-data-security.ts'
 import { rankAugmentRecommendations } from '../shared/augment-ranking.ts'
+import {
+  getTencentChampionSnapshot,
+  getTencentGlobalSnapshot,
+  onTencentDataUpdated,
+} from './services/tencent-data/tencent-data-service.ts'
+import {
+  overlayAugmentsPayload,
+  overlayChampionDetail,
+  overlayChampionsPayload,
+} from './services/tencent-data/tencent-overlay.ts'
 
 declare const fetch: any
 
@@ -142,6 +152,11 @@ const detailCache = new Map<string, any>()
 const augmentDetailCache = new Map<string, Record<string, any>>()
 const championAugmentStatsCache = new Map<string, any[]>()
 const championAugmentStatsPending = new Map<string, Promise<any[]>>()
+
+onTencentDataUpdated(() => {
+  augmentDetailCache.clear()
+  championAugmentStatsCache.clear()
+})
 const activeDataSetPromises = new Map<SupportedDataLocale, Promise<ActiveDataSet>>()
 const activeDataSetCaches = new Map<SupportedDataLocale, { data: ActiveDataSet; createdAt: number }>()
 const activeDataSetRefreshPromises = new Map<SupportedDataLocale, Promise<ActiveDataSet | null>>()
@@ -1428,12 +1443,25 @@ async function loadDataFile(
   )
 }
 
+// 腾讯官方统计只有国服简体中文，其他语言保持 aramgg 原始数据。
+async function getTencentSnapshotForLocale(locale: SupportedDataLocale) {
+  return locale === DEFAULT_DATA_LOCALE ? getTencentGlobalSnapshot() : null
+}
+
 async function loadChampionsPayload(locale: SupportedDataLocale = activeDataLocale): Promise<any> {
-  return loadDataFile('champions.json', locale)
+  const [payload, snapshot] = await Promise.all([
+    loadDataFile('champions.json', locale),
+    getTencentSnapshotForLocale(locale),
+  ])
+  return overlayChampionsPayload(payload, snapshot)
 }
 
 async function loadAugmentsPayload(locale: SupportedDataLocale = activeDataLocale): Promise<any> {
-  return loadDataFile('augments.json', locale)
+  const [payload, snapshot] = await Promise.all([
+    loadDataFile('augments.json', locale),
+    getTencentSnapshotForLocale(locale),
+  ])
+  return overlayAugmentsPayload(payload, snapshot)
 }
 
 async function loadItemsPayload(locale: SupportedDataLocale = activeDataLocale): Promise<any> {
@@ -1700,6 +1728,19 @@ async function loadCachedLatestChampionDetailPayload(
 }
 
 async function loadChampionDetailPayload(
+  championId: string | number,
+  requestedLocale: SupportedDataLocale = activeDataLocale
+): Promise<any | null> {
+  const locale = normalizeDataLocale(requestedLocale)
+  const [detail, snapshot, championSnapshot] = await Promise.all([
+    loadBaseChampionDetailPayload(championId, locale),
+    getTencentSnapshotForLocale(locale),
+    locale === DEFAULT_DATA_LOCALE ? getTencentChampionSnapshot(championId) : null,
+  ])
+  return overlayChampionDetail(detail, snapshot, championSnapshot)
+}
+
+async function loadBaseChampionDetailPayload(
   championId: string | number,
   requestedLocale: SupportedDataLocale = activeDataLocale
 ): Promise<any | null> {
@@ -2377,10 +2418,11 @@ async function loadCachedOcrAugmentLocaleData(
       continue
     }
 
+    const merged = overlayAugmentsPayload(payload, await getTencentSnapshotForLocale(requestedLocale))
     return {
       locale: requestedLocale,
       dataVersion,
-      augments: extractList(payload, 'augments').map(mapPublicAugmentBase),
+      augments: extractList(merged, 'augments').map(mapPublicAugmentBase),
       source,
     }
   }
@@ -2422,10 +2464,11 @@ export async function loadAugmentBaseForOcrLocale(locale: unknown): Promise<OcrA
     { locale: requestedLocale }
   )
 
+  const merged = overlayAugmentsPayload(payload, await getTencentSnapshotForLocale(requestedLocale))
   return {
     locale: requestedLocale,
     dataVersion,
-    augments: extractList(payload, 'augments').map(mapPublicAugmentBase),
+    augments: extractList(merged, 'augments').map(mapPublicAugmentBase),
     source: 'remote',
   }
 }

@@ -13,6 +13,8 @@ const originalCwd = process.cwd()
 const originalHome = process.env.HOME
 const originalUserProfile = process.env.USERPROFILE
 const originalOcrLocale = process.env.ARAMGG_OCR_LOCALE
+// OCR 夹具只认仓库内的固定数据，不能去请求腾讯线上统计。
+process.env.ARAMGG_DISABLE_TENCENT_DATA = '1'
 let testRoot = null
 let shutdownImageAnalyzer = null
 
