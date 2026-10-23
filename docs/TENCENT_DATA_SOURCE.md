@@ -12,7 +12,7 @@
 
 ## 接口
 
-接口没有公开文档，是从 101.qq.com 前端脚本中整理出来的，无需登录，也不需要 Referer。
+接口没有公开文档，是从 101.qq.com 前端脚本中整理出来的，无需登录。不带 Referer 偶尔会短暂返回 501，同步脚本按攻略站网页的方式带上 `Referer: https://101.qq.com/` 和浏览器 UA，并在重试时退避等待。
 
 | 用途 | 地址 |
 | --- | --- |
@@ -30,6 +30,17 @@
 - 客户端读取 `https://raw.githubusercontent.com/orangelee89/aramgg_client/tencent-data/...`。仓库公开，朋友不需要 GitHub 账号。
 - 内置地址写在 `tencent-data-service.ts` 的 `TENCENT_MIRROR_BASE_URL`，只能被本机环境变量 `ARAMGG_TENCENT_MIRROR_ORIGIN` 覆盖（设为空字符串即只直连掌盟），只接受 https 或本机 http，远端配置不能修改。
 - raw.githubusercontent.com 有约 5 分钟 CDN 缓存：manifest 请求带时间戳参数绕过缓存；数据文件请求带内容哈希参数，内容变了 URL 就变。
+
+## 马服（zh_MY）译名
+
+本 fork 的用户在北美服用马来西亚简中（Riot `zh_MY`）客户端，海克斯译名和国服大面积不同（掌盟 237 个里 188 个不同，例如国服「命运之武器」在马服叫「命定武器」）。翻译在同步脚本发布镜像时就完成，镜像里的名字本身就是马服名，客户端不检测游戏语言：
+
+- 译名来自 Riot 官方游戏数据的 CommunityDragon 镜像（`latest` 跟随正式服补丁）：`plugins/rcp-be-lol-game-data/global/zh_my/v1/` 下的 `cherry-augments.json`（海克斯，只取掌盟名称表里有的 id 和 `ARAM_` 前缀条目）、`champion-summary.json`（英雄）、`items.json`（装备）。
+- `global.json` 的 `names` 里，`name_cn` 已换成马服名，原国服名保留在 `name_cn_tencent`；英雄、装备的马服名放在 `localizedNames.champions` / `localizedNames.items`。译名变化会让 global 哈希变化，客户端照常比对下载。
+- 某个海克斯在 CDragon 里没有马服名时保留国服名，并在同步日志里列出（目前只有两个测试服海克斯）。CDragon 取不到或行数过少时沿用上一份已发布数据里的译名；连上一份也没有才退回国服名，同样打日志。
+- 客户端直接把镜像名当展示名（海克斯、英雄、装备），描述和 tooltip 仍是国服文本（CDragon 的 cherry-augments 没有描述）。
+- OCR 同时用展示名（马服名）和 `name_cn_tencent`（国服名）匹配；被替换下来的 aramgg 旧名也留作别名。`src/main/data/augment-ocr-aliases.zh-MY.json` 内置静态表保留作离线兜底。
+- 镜像不可用、直连掌盟时拿到的是国服名，展示国服名，OCR 依赖内置别名表识别马服卡面。
 
 ## 刷新策略
 

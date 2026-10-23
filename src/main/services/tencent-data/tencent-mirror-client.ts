@@ -13,7 +13,15 @@ export type MirrorManifest = {
 
 export type MirrorGlobalResult =
   | { status: 'unchanged'; hash: string }
-  | { status: 'updated'; hash: string; sourceFetchedAt: string; names: any; rune: any; hero: any }
+  | {
+      status: 'updated'
+      hash: string
+      sourceFetchedAt: string
+      names: any
+      rune: any
+      hero: any
+      localizedNames: { champions: Record<string, string>; items: Record<string, string> } | null
+    }
 
 export type MirrorChampionResult =
   | { status: 'unchanged'; hash: string }
@@ -59,6 +67,27 @@ function parseBody(response: RawResponse, what: string): any {
   }
 
   return body
+}
+
+function parseNameMap(value: any): Record<string, string> {
+  const map: Record<string, string> = {}
+  if (value && typeof value === 'object') {
+    for (const [id, name] of Object.entries(value)) {
+      if (/^\d+$/.test(id) && typeof name === 'string' && name.trim()) {
+        map[id] = name.trim()
+      }
+    }
+  }
+
+  return map
+}
+
+export function parseLocalizedNames(value: any) {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  return { champions: parseNameMap(value.champions), items: parseNameMap(value.items) }
 }
 
 export async function fetchMirrorManifest(
@@ -117,6 +146,7 @@ export async function syncGlobalFromMirror(
     names: body.names,
     rune: body.rune,
     hero: body.hero,
+    localizedNames: parseLocalizedNames(body.localizedNames),
   }
 }
 

@@ -84,7 +84,7 @@ describe('tencent-data-service startup sync', () => {
   const tencentFetch = async (url: string) => fakeTencentResponse(tencent, url) || new Response('nope', { status: 404 })
 
   async function publish(now: number) {
-    await syncTencentData({ outDir: mirrorDir, fetchImpl: tencentFetch, now, log: () => {} })
+    await syncTencentData({ outDir: mirrorDir, fetchImpl: tencentFetch, now, log: () => {}, retryDelayMs: 0 })
     tencent.calls = []
   }
 
@@ -138,7 +138,8 @@ describe('tencent-data-service startup sync', () => {
     service.onTencentDataUpdated(updates)
     const first = await service.syncTencentDataOnStartup()
     expect(first?.mirrorHash).toMatch(/^[0-9a-f]{16}$/)
-    expect(first?.augments.some((augment) => augment.name === '命运之武器')).toBe(true)
+    expect(first?.augments.find((augment) => augment.id === '1001')).toMatchObject({ name: '命定武器', aliasNames: ['命运之武器'] })
+    expect(first?.localizedNames?.champions['1']).toBe('马服英雄1')
     expect(mirrorCalls).toEqual(['/manifest.json', '/global.json'])
     expect(tencent.calls).toEqual([])
     expect(updates).toHaveBeenCalledTimes(1)

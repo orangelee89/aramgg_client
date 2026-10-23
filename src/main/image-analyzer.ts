@@ -33,8 +33,9 @@ import logger from './modules/logger.ts'
 import { ensureOnnxruntimeNativeDllPath } from './modules/onnxruntime-native-path.ts'
 import { discoverLcuAuthFromProcess } from './services/lcu/process-auth-discovery.ts'
 import { onTencentDataUpdated } from './services/tencent-data/tencent-data-service.ts'
-// 马来西亚简中（Riot zh_MY）客户端的海克斯译名与国服 zh-CN 数据大面积不同（211 个里 170 个），
-// 站点数据只有 zh-CN / zh-TW / en-US，这里内置一份 zh_MY 名字表作为 OCR 别名。
+// 马来西亚简中（Riot zh_MY）客户端的海克斯译名与国服 zh-CN 数据大面积不同（211 个里 170 个）。
+// 数据镜像已直接下发 zh_MY 名字（国服名作别名，见 docs/TENCENT_DATA_SOURCE.md）；
+// 这份内置 zh_MY 名字表作为离线 / 直连掌盟时的 OCR 别名兜底。
 import zhMyOcrAliases from './data/augment-ocr-aliases.zh-MY.json' with { type: 'json' }
 
 sharp.concurrency(Number(process.env.ARAMGG_SHARP_CONCURRENCY) || 2)
@@ -316,6 +317,25 @@ function mergeAugmentBaseRecord(database, augment, locale) {
     return true
 }
 
+// 只往 OCR 名字库里补别名，不改展示名（例如镜像换成马服名后，国服名留作别名）。
+function addAugmentOcrAliases(database, augment, locale) {
+    const record = database[String(augment?.id || '')]
+    const aliases = Array.isArray(augment?.aliasNames) ? augment.aliasNames : []
+    let added = 0
+    for (const alias of aliases) {
+        const name = String(alias || '').trim()
+        const normalizedName = normalizeOcrText(name)
+        if (!record || !normalizedName || record.ocrNames.some(entry => entry.normalizedName === normalizedName)) {
+            continue
+        }
+
+        record.ocrNames.push({ locale, name, normalizedName })
+        added++
+    }
+
+    return added
+}
+
 async function loadAugmentOcrLocale(locale) {
     if (loadedAugmentLocales.has(locale)) {
         return true
@@ -347,6 +367,7 @@ async function loadAugmentOcrLocale(locale) {
             for (const augment of result.augments) {
                 if (mergeAugmentBaseRecord(AUGMENT_DATABASE, augment, locale)) {
                     ocrNameCount++
+                    ocrNameCount += addAugmentOcrAliases(AUGMENT_DATABASE, augment, locale)
                 } else {
                     invalidCount++
                 }

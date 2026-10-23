@@ -262,6 +262,7 @@ async function syncGlobalViaMirror(baseUrl: string): Promise<TencentGlobalSnapsh
       buildGlobalSnapshot(result.names, result.rune, championStats, {
         mirrorHash: result.hash,
         sourceFetchedAt: result.sourceFetchedAt,
+        ...(result.localizedNames ? { localizedNames: result.localizedNames } : {}),
       })
     )
   } catch (error: any) {
