@@ -268,7 +268,13 @@ export function overlayChampionDetail(
       }
     })
 
-    result.augments = augments
+    // 掌盟推荐列表里没有、但 aramgg 有单英雄胜率的海克斯也要保留，排在掌盟列表之后。
+    const rankedIds = new Set(ranked.map((entry) => entry.augmentId))
+    const leftovers = [...existingById.entries()]
+      .filter(([id, augment]) => !rankedIds.has(id) && augment?.stats?.winRateSource && augment.stats.winRate != null)
+      .map(([, augment]) => ({ ...augment, stats: { ...augment.stats, rank: null, total } }))
+
+    result.augments = [...augments, ...leftovers]
   }
 
   return result

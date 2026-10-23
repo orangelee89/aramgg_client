@@ -27,7 +27,31 @@ export const getAugmentScore = (augment) => {
   return null
 }
 
+const getFiniteWinRate = (augment) => {
+  const value = augment?.winRate ?? augment?.win_rate
+  if (value == null || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+// 高亮优先看「本英雄 × 该海克斯」胜率；三张卡都没有胜率时才退回综合排序。
 export const getTopPickKey = (augments = []) => {
+  let bestWinRateIndex = -1
+  augments.forEach((augment, index) => {
+    const winRate = getFiniteWinRate(augment)
+    if (augment?.missing || winRate == null) {
+      return
+    }
+
+    if (bestWinRateIndex < 0 || winRate > getFiniteWinRate(augments[bestWinRateIndex])) {
+      bestWinRateIndex = index
+    }
+  })
+
+  if (bestWinRateIndex >= 0) {
+    return getAugmentKey(augments[bestWinRateIndex], bestWinRateIndex)
+  }
+
   let bestIndex = -1
 
   augments.forEach((augment, index) => {
