@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { contentHash, getStatDate, syncTencentData } from '../../scripts/tencent-data/sync-tencent-data.mjs'
+import { contentHash, getStatDate, parseGamePatch, syncTencentData } from '../../scripts/tencent-data/sync-tencent-data.mjs'
 import {
   parseChampionAugments,
   parseHeroRank,
@@ -156,5 +156,16 @@ describe('sync-tencent-data script', () => {
   it('uses the previous Beijing day for hero stats', () => {
     expect(getStatDate(Date.UTC(2026, 9, 22, 4, 17), 1)).toBe('20261021')
     expect(getStatDate(Date.UTC(2026, 9, 22, 20, 0), 1)).toBe('20261022')
+  })
+})
+
+describe('parseGamePatch', () => {
+  it('extracts major.minor from CommunityDragon content metadata', () => {
+    expect(parseGamePatch(JSON.stringify({ version: '16.21.8298620+branch.releases-16-21.content.release' }))).toBe('16.21')
+  })
+
+  it('returns null for unexpected metadata', () => {
+    expect(parseGamePatch('not json')).toBeNull()
+    expect(parseGamePatch(JSON.stringify({ version: 'latest' }))).toBeNull()
   })
 })

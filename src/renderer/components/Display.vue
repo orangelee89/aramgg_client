@@ -589,8 +589,8 @@ const changeLocale = async (requestedLocale = selectedLocale.value) => {
             versionInfo.value = {
                 ...versionInfo.value,
                 locale: result.locale,
-                dataVersion: result.dataVersion,
             }
+            void loadVersionInfo()
         }
         testStatus.value = {
             type: 'success',

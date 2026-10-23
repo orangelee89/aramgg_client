@@ -19,6 +19,8 @@ export type TencentGlobalSnapshot = {
   championStats: TencentChampionStat[]
   // 镜像下发的英雄 / 装备展示名（马服 zh_MY 译名）；直连掌盟时没有。
   localizedNames?: { champions: Record<string, string>; items: Record<string, string> }
+  // 镜像同步时记录的正式服补丁号（如 16.21），只用于界面显示。
+  gamePatch?: string
 }
 
 export type TencentChampionSnapshot = {

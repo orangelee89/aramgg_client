@@ -2,6 +2,8 @@ import { app } from 'electron'
 import { getActiveDataStatus, loadDataApiConfig } from './data-loader.ts'
 import { getChangelogEntries } from './changelog.ts'
 import logger from './modules/logger.ts'
+import { IS_FORK_BUILD } from './fork-info.ts'
+import { getTencentGlobalSnapshot } from './services/tencent-data/tencent-data-service.ts'
 
 const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/
 type VersionSeverity = 'unknown' | 'none' | 'major' | 'minor' | 'patch'
@@ -90,13 +92,30 @@ function getSeverityText(severity: VersionSeverity): string {
   return '已是最新'
 }
 
+// 掌盟数据由自建镜像每天同步，界面显示镜像记录的正式服补丁号和统计日期，而不是 aramgg 的数据包版本。
+function getTencentDisplayVersion(snapshot: Awaited<ReturnType<typeof getTencentGlobalSnapshot>>) {
+  const gamePatch = snapshot?.gamePatch || ''
+  if (!gamePatch) {
+    return null
+  }
+
+  const statDate = /^\d{4}-(\d{2}-\d{2})$/.exec(snapshot?.statDate || '')?.[1]
+  return {
+    gamePatch,
+    dataVersion: statDate ? `${gamePatch} · ${statDate}` : gamePatch,
+  }
+}
+
 export async function getVersionInfo() {
-  const [config, activeData] = await Promise.all([
+  const [config, activeData, tencentSnapshot] = await Promise.all([
     loadDataApiConfig(),
     getActiveDataStatus(),
+    getTencentGlobalSnapshot().catch(() => null),
   ])
   const currentVersion = app.getVersion()
-  const clientConfig = config?.client || config?.electron || {}
+  // fork 有独立版本号，不跟上游 aramgg 的最新/最低版本比较，否则会一直提示更新到官方版。
+  const clientConfig = IS_FORK_BUILD ? {} : config?.client || config?.electron || {}
+  const tencentVersion = getTencentDisplayVersion(tencentSnapshot)
   const latestVersion = clientConfig.latestVersion || ''
   const minimumVersion = clientConfig.minimumVersion || ''
   const comparison = compareVersion(currentVersion, latestVersion)
@@ -112,9 +131,9 @@ export async function getVersionInfo() {
     autoUpdateEnabled: clientConfig.autoUpdateEnabled === true,
     updateFeedUrl: clientConfig.updateFeedUrl || '',
     minimumVersion,
-    dataVersion: activeData?.dataVersion || config?.dataVersion || '',
+    dataVersion: tencentVersion?.dataVersion || activeData?.dataVersion || config?.dataVersion || '',
     locale: activeData?.locale || config?.locale || '',
-    gamePatch: activeData?.gamePatch || config?.gamePatch || '',
+    gamePatch: tencentVersion?.gamePatch || activeData?.gamePatch || config?.gamePatch || '',
     apiRelease: config?.apiRelease ?? null,
     generatedAt: activeData?.generatedAt || config?.generatedAt || '',
     publishedAt: config?.publishedAt || '',
@@ -123,7 +142,7 @@ export async function getVersionInfo() {
     isNewer: comparison.isNewer,
     isBelowMinimumVersion,
     statusText: getSeverityText(comparison.severity),
-    changelog: getChangelogEntries(config, clientConfig),
+    changelog: IS_FORK_BUILD ? getChangelogEntries({}, {}) : getChangelogEntries(config, clientConfig),
   }
 }
 

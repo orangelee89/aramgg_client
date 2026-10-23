@@ -230,7 +230,9 @@ async function fetchDirectGlobalSnapshot(): Promise<TencentGlobalSnapshot> {
 
 async function commitGlobalSnapshot(next: TencentGlobalSnapshot): Promise<TencentGlobalSnapshot> {
   const current = globalSnapshot
-  const merged = current && isOlderSource(next, current) ? { ...current, mirrorHash: next.mirrorHash } : next
+  const candidate = current && isOlderSource(next, current) ? { ...current, mirrorHash: next.mirrorHash } : next
+  // 直连掌盟拿不到补丁号，沿用上一次镜像给的值。
+  const merged = !candidate.gamePatch && current?.gamePatch ? { ...candidate, gamePatch: current.gamePatch } : candidate
   const changed = !sameContent(current, merged)
   globalSnapshot = merged
   await writeSnapshotFile('global.json', merged).catch((error: any) => {
@@ -263,6 +265,7 @@ async function syncGlobalViaMirror(baseUrl: string): Promise<TencentGlobalSnapsh
         mirrorHash: result.hash,
         sourceFetchedAt: result.sourceFetchedAt,
         ...(result.localizedNames ? { localizedNames: result.localizedNames } : {}),
+        ...(result.gamePatch ? { gamePatch: result.gamePatch } : {}),
       })
     )
   } catch (error: any) {

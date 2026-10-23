@@ -21,6 +21,7 @@ export type MirrorGlobalResult =
       rune: any
       hero: any
       localizedNames: { champions: Record<string, string>; items: Record<string, string> } | null
+      gamePatch: string
     }
 
 export type MirrorChampionResult =
@@ -147,6 +148,7 @@ export async function syncGlobalFromMirror(
     rune: body.rune,
     hero: body.hero,
     localizedNames: parseLocalizedNames(body.localizedNames),
+    gamePatch: /^\d+\.\d+$/.test(String(body.gamePatch || '')) ? String(body.gamePatch) : '',
   }
 }
 
