@@ -77,6 +77,11 @@ import {
 } from '../service/augment-display.js'
 import { getAugmentIconUrl } from '../service/cdn'
 import { formatAugmentWinRate, formatPercent } from '../service/overlay-formatters.ts'
+import {
+  AUGMENT_HIGHLIGHT_MODE_STORE_KEY,
+  DEFAULT_AUGMENT_HIGHLIGHT_MODE,
+  normalizeAugmentHighlightMode,
+} from '../../shared/augment-highlight.ts'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -90,7 +95,18 @@ let overlayRequestId = 0
 
 const previewAugments = computed(() => displayAugments.value.slice(0, 3))
 
-const topPickKey = computed(() => getTopPickKey(previewAugments.value))
+const highlightMode = ref(DEFAULT_AUGMENT_HIGHLIGHT_MODE)
+const topPickKey = computed(() => getTopPickKey(previewAugments.value, highlightMode.value))
+
+const loadHighlightMode = async () => {
+  try {
+    highlightMode.value = normalizeAugmentHighlightMode(
+      await electronAPI.store.get(AUGMENT_HIGHLIGHT_MODE_STORE_KEY)
+    )
+  } catch {
+    highlightMode.value = DEFAULT_AUGMENT_HIGHLIGHT_MODE
+  }
+}
 
 const isTopPick = (augment, index) => getAugmentKey(augment, index) === topPickKey.value
 
@@ -159,6 +175,7 @@ const getTopPickDiagnostics = () => {
     id: getAugmentDebugId(augment),
     name: augment?.name || null,
     recommendScore: augment?.recommendScore ?? null,
+    highlightMode: highlightMode.value,
   }
 }
 
@@ -405,6 +422,11 @@ const closeOverlay = (reason = 'manual') => {
  */
 onMounted(() => {
   console.log('🔧 [FloatingOverlay] 组件已挂载')
+  loadHighlightMode()
+
+  unsubscribeEvents.push(electronAPI.events.on('augment-highlight-mode-changed', (payload) => {
+    highlightMode.value = normalizeAugmentHighlightMode(payload?.mode)
+  }))
 
   unsubscribeEvents.push(electronAPI.events.on('augment-detected', (data) => {
     console.log('📊 [FloatingOverlay] 收到 augment-detected:', data)

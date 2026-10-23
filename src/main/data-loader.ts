@@ -9,6 +9,7 @@ import {
   resolveTrustedClientDataUrl,
 } from '../shared/client-data-security.ts'
 import { rankAugmentRecommendations } from '../shared/augment-ranking.ts'
+import { getWeightedAugmentScore } from '../shared/augment-highlight.ts'
 import {
   getTencentChampionSnapshot,
   getTencentGlobalSnapshot,
@@ -1987,14 +1988,7 @@ function mapPublicAugmentStats(augment: any): any {
 }
 
 function getLegacyAugmentRecommendScore(stats: any): number | null {
-  const winRate = toNullableNumber(stats.win_rate)
-  if (winRate == null) {
-    return null
-  }
-
-  const pickRate = toNullableNumber(stats.pick_rate) ?? 0
-  const games = toNullableNumber(stats.num_games) ?? 0
-  return winRate * 0.6 + pickRate * 0.2 + Math.min(games / 1000, 1) * 0.2
+  return getWeightedAugmentScore(stats)
 }
 
 function mapPublicAugmentRecommendation(

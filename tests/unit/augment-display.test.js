@@ -100,4 +100,45 @@ describe('augment floating display merge', () => {
 
     expect(getTopPickKey(result)).toBe(102)
   })
+
+  it('pickRate mode follows the official pick-rate rank even when win rates exist', () => {
+    const result = [
+      detected(101, 0, { rank: 12, winRate: 0.6 }),
+      detected(102, 1, { rank: 1, winRate: 0.5 }),
+      detected(103, 2, { rank: 8, winRate: 0.55 }),
+    ]
+
+    expect(getTopPickKey(result, 'pickRate')).toBe(102)
+  })
+
+  it('weighted mode combines win rate, pick rate and games', () => {
+    const result = [
+      // 0.52*0.6 + 0.30*0.2 + 1*0.2 = 0.572
+      detected(101, 0, { rank: 3, winRate: 0.52, pickRate: 0.3, playCount: 5000 }),
+      // 0.58*0.6 + 0.01*0.2 + 0.1*0.2 = 0.37
+      detected(102, 1, { rank: 9, winRate: 0.58, pickRate: 0.01, playCount: 100 }),
+      detected(103, 2, { rank: 1 }),
+    ]
+
+    expect(getTopPickKey(result, 'weighted')).toBe(101)
+    expect(getTopPickKey(result, 'winRate')).toBe(102)
+  })
+
+  it('weighted mode falls back to pick-rate rank when no card has a win rate', () => {
+    const result = [
+      detected(101, 0, { rank: 5, pickRate: 0.2 }),
+      detected(102, 1, { rank: 2, pickRate: 0.1 }),
+    ]
+
+    expect(getTopPickKey(result, 'weighted')).toBe(102)
+  })
+
+  it('treats an unknown mode as the default win-rate mode', () => {
+    const result = [
+      detected(101, 0, { rank: 1, winRate: 0.4 }),
+      detected(102, 1, { rank: 2, winRate: 0.6 }),
+    ]
+
+    expect(getTopPickKey(result, 'bogus')).toBe(102)
+  })
 })

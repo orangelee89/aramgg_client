@@ -1,5 +1,6 @@
 import { sortAugmentsByDetectedOrder } from './augment-order.js'
 import { compareAugmentPriority } from '../../shared/augment-ranking.ts'
+import { getWeightedAugmentScore, normalizeAugmentHighlightMode } from '../../shared/augment-highlight.ts'
 
 export const getAugmentId = (augment) => augment?.augmentId ?? augment?.id ?? null
 
@@ -34,24 +35,25 @@ const getFiniteWinRate = (augment) => {
   return Number.isFinite(number) ? number : null
 }
 
-// 高亮优先看「本英雄 × 该海克斯」胜率；三张卡都没有胜率时才退回综合排序。
-export const getTopPickKey = (augments = []) => {
-  let bestWinRateIndex = -1
+const findBestIndexBy = (augments, getValue) => {
+  let bestIndex = -1
+  let bestValue = null
   augments.forEach((augment, index) => {
-    const winRate = getFiniteWinRate(augment)
-    if (augment?.missing || winRate == null) {
+    const value = augment?.missing ? null : getValue(augment)
+    if (value == null) {
       return
     }
 
-    if (bestWinRateIndex < 0 || winRate > getFiniteWinRate(augments[bestWinRateIndex])) {
-      bestWinRateIndex = index
+    if (bestIndex < 0 || value > bestValue) {
+      bestIndex = index
+      bestValue = value
     }
   })
 
-  if (bestWinRateIndex >= 0) {
-    return getAugmentKey(augments[bestWinRateIndex], bestWinRateIndex)
-  }
+  return bestIndex
+}
 
+const getPickRatePriorityIndex = (augments) => {
   let bestIndex = -1
 
   augments.forEach((augment, index) => {
@@ -72,6 +74,29 @@ export const getTopPickKey = (augments = []) => {
       bestIndex = index
     }
   })
+
+  return bestIndex
+}
+
+/**
+ * 选出三卡里要高亮的那张：
+ * - pickRate：按腾讯国服推荐名次（即单英雄选取率排名）；
+ * - winRate：本英雄 × 该海克斯胜率最高；
+ * - weighted：胜率 × 0.6 + 选取率 × 0.2 + min(场次 / 1000, 1) × 0.2 最高。
+ * 胜率类模式下三张都没有胜率时退回 pickRate。
+ */
+export const getTopPickKey = (augments = [], mode = undefined) => {
+  const highlightMode = normalizeAugmentHighlightMode(mode)
+  let bestIndex = -1
+  if (highlightMode === 'winRate') {
+    bestIndex = findBestIndexBy(augments, getFiniteWinRate)
+  } else if (highlightMode === 'weighted') {
+    bestIndex = findBestIndexBy(augments, getWeightedAugmentScore)
+  }
+
+  if (bestIndex < 0) {
+    bestIndex = getPickRatePriorityIndex(augments)
+  }
 
   return bestIndex >= 0 ? getAugmentKey(augments[bestIndex], bestIndex) : null
 }
