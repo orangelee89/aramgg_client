@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // 从掌盟（101.qq.com 背后的接口）抓取海克斯大乱斗数据，写成客户端镜像使用的静态文件。
 // 由 .github/workflows/sync-tencent-data.yml 每天运行一次，产物推到 tencent-data 分支。
 //
