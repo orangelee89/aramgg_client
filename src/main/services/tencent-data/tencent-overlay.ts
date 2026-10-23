@@ -274,9 +274,15 @@ export function overlayChampionDetail(
     const rankedIds = new Set(ranked.map((entry) => entry.augmentId))
     const leftovers = [...existingById.entries()]
       .filter(([id, augment]) => !rankedIds.has(id) && augment?.stats?.winRateSource && augment.stats.winRate != null)
-      .map(([, augment]) => ({ ...augment, stats: { ...augment.stats, rank: null, total } }))
-
-    result.augments = [...augments, ...leftovers]
+    // 排序要求每条都有 rank，补回来的条目接在掌盟名次之后，total 统一为合并后的条数。
+    const mergedTotal = augments.length + leftovers.length
+    result.augments = [
+      ...augments.map((augment) => ({ ...augment, stats: { ...augment.stats, total: mergedTotal } })),
+      ...leftovers.map(([, augment], index) => ({
+        ...augment,
+        stats: { ...augment.stats, rank: augments.length + index + 1, total: mergedTotal },
+      })),
+    ]
   }
 
   return result

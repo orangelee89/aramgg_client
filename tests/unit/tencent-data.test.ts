@@ -229,6 +229,6 @@ describe('tencent overlay', () => {
 
     const merged = overlayChampionDetail(detail, snapshot(), championSnapshot)
     expect(merged.augments.map((augment: any) => augment.id)).toEqual([1001, 2054])
-    expect(merged.augments[1].stats).toMatchObject({ winRate: 0.61, games: 900, rank: null })
+    expect(merged.augments[1].stats).toMatchObject({ winRate: 0.61, games: 900, rank: 2, total: 2 })
   })
 })
