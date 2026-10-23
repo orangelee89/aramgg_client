@@ -211,4 +211,24 @@ describe('tencent overlay', () => {
     expect(merged.augments[1].stats).toMatchObject({ winRate: 0.46, games: 374, pickRate: 0.12, tier: 2, rank: 2 })
     expect(merged.augments[2].stats).toMatchObject({ winRate: null, pickRate: 0.01, tier: 3 })
   })
+
+  it('keeps uploaded champion win rates for augments missing from the Tencent ranking', () => {
+    const detail = {
+      championId: 1,
+      augments: [
+        { id: 1001, stats: { winRate: 0.46, games: 374, winRateSource: 'aramgg-client-upload' } },
+        { id: 2054, stats: { winRate: 0.61, games: 900, winRateSource: 'aramgg-client-upload' } },
+        { id: 1004, stats: { winRate: null, pickRate: 0.002 } },
+      ],
+    }
+    const championSnapshot: TencentChampionSnapshot = {
+      fetchedAt: '2026-10-22T08:00:00.000Z',
+      championId: '1',
+      augments: [{ augmentId: '1001', rank: 1, pickRate: 0.12, grade: 'S' }],
+    }
+
+    const merged = overlayChampionDetail(detail, snapshot(), championSnapshot)
+    expect(merged.augments.map((augment: any) => augment.id)).toEqual([1001, 2054])
+    expect(merged.augments[1].stats).toMatchObject({ winRate: 0.61, games: 900, rank: null })
+  })
 })
