@@ -28,6 +28,7 @@ const validEvents = new Set<ElectronEventChannel>([
   'app-update-status-changed',
   'locale-changed',
   'match-history-updated',
+  'augment-highlight-mode-changed',
 ])
 
 function assertValidEvent(channel: string): asserts channel is ElectronEventChannel {

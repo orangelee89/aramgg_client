@@ -1,5 +1,10 @@
 import type { AppStoreKey, SupportedDataLocale } from '../../shared/ipc-contract.ts'
 import {
+  AUGMENT_HIGHLIGHT_MODE_STORE_KEY,
+  DEFAULT_AUGMENT_HIGHLIGHT_MODE,
+  isAugmentHighlightMode,
+} from '../../shared/augment-highlight.ts'
+import {
   DEFAULT_DATA_LOCALE,
   SUPPORTED_DATA_LOCALES,
   getDataLocale,
@@ -22,6 +27,7 @@ const RENDERER_STORE_KEYS = new Set<AppStoreKey>([
   'championInsight.alwaysOnTop',
   'augments.showTopOverlay',
   'augments.showSidePanel',
+  'augments.highlightMode',
   'postGameShare.autoShow',
   'postGameShare.comparePlayers',
   'postGameShare.popupWindow',
@@ -63,9 +69,16 @@ export function registerPreferencesIpcHandlers(): void {
 
   ipcMain.handle('store-set', (_event, key: unknown, value: unknown) => {
     assertRendererStoreKey(key)
+    if (key === AUGMENT_HIGHLIGHT_MODE_STORE_KEY && !isAugmentHighlightMode(value)) {
+      throw new Error('Unsupported augment highlight mode')
+    }
+
     store.set(key, value)
     if (key.startsWith('championInsight.')) {
       applyPopupWindowPreferences()
+    }
+    if (key === AUGMENT_HIGHLIGHT_MODE_STORE_KEY) {
+      notifyAllWindows('augment-highlight-mode-changed', { mode: value })
     }
   })
 
@@ -74,6 +87,9 @@ export function registerPreferencesIpcHandlers(): void {
     store.delete(key)
     if (key.startsWith('championInsight.')) {
       applyPopupWindowPreferences()
+    }
+    if (key === AUGMENT_HIGHLIGHT_MODE_STORE_KEY) {
+      notifyAllWindows('augment-highlight-mode-changed', { mode: DEFAULT_AUGMENT_HIGHLIGHT_MODE })
     }
   })
 

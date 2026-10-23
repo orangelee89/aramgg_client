@@ -1,3 +1,5 @@
+import type { AugmentHighlightMode } from './augment-highlight.ts'
+
 export type Unsubscribe = () => void
 
 export type AppStoreKey =
@@ -8,6 +10,7 @@ export type AppStoreKey =
   | 'championInsight.alwaysOnTop'
   | 'augments.showTopOverlay'
   | 'augments.showSidePanel'
+  | 'augments.highlightMode'
   | 'postGameShare.autoShow'
   | 'postGameShare.comparePlayers'
   | 'postGameShare.popupWindow'
@@ -342,6 +345,10 @@ export interface MatchHistoryUpdatedPayload {
   updatedAt: number
 }
 
+export interface AugmentHighlightModeChangedPayload {
+  mode: AugmentHighlightMode
+}
+
 export interface ElectronEventMap {
   fromMain: [payload?: unknown]
   'for-popup': [payload: OverlayPayload]
@@ -365,6 +372,7 @@ export interface ElectronEventMap {
   'app-update-status-changed': [payload: AppUpdateState]
   'locale-changed': [payload: LocaleChangedPayload]
   'match-history-updated': [payload: MatchHistoryUpdatedPayload]
+  'augment-highlight-mode-changed': [payload: AugmentHighlightModeChangedPayload]
 }
 
 export type ElectronEventChannel = keyof ElectronEventMap

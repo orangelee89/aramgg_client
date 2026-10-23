@@ -37,6 +37,37 @@
           <span class="switch-thumb"></span>
         </button>
       </div>
+
+      <div class="setting-row">
+        <div class="setting-copy">
+          <strong>{{ t('preferences.highlightModeTitle') }}</strong>
+          <span>{{ t(`preferences.highlightModeHints.${highlightMode}`) }}</span>
+        </div>
+
+        <Select
+          :model-value="highlightMode"
+          :disabled="highlightModeSaving"
+          @update:model-value="changeHighlightMode"
+        >
+          <SelectTrigger
+            class="highlight-mode-trigger"
+            :aria-label="t('preferences.highlightModeTitle')"
+            :title="t('preferences.highlightModeDescription')"
+          >
+            <SelectValue>{{ t(`preferences.highlightModes.${highlightMode}`) }}</SelectValue>
+          </SelectTrigger>
+          <SelectContent align="end" :side-offset="6">
+            <SelectItem
+              v-for="mode in AUGMENT_HIGHLIGHT_MODES"
+              :key="mode"
+              :value="mode"
+              :text-value="t(`preferences.highlightModes.${mode}`)"
+            >
+              {{ t(`preferences.highlightModes.${mode}`) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   </section>
 </template>
@@ -46,6 +77,20 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { AlertTriangle, Settings } from 'lucide-vue-next'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { useI18n } from 'vue-i18n'
+import {
+  AUGMENT_HIGHLIGHT_MODES,
+  AUGMENT_HIGHLIGHT_MODE_STORE_KEY,
+  DEFAULT_AUGMENT_HIGHLIGHT_MODE,
+  isAugmentHighlightMode,
+  normalizeAugmentHighlightMode,
+} from '../../shared/augment-highlight.ts'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select/index.js'
 
 const { t } = useI18n()
 const emit = defineEmits(['post-game-auto-show-changed', 'post-game-popup-window-changed'])
@@ -184,7 +229,49 @@ const togglePreference = async (key) => {
   }
 }
 
-onMounted(loadPreferences)
+const highlightMode = ref(DEFAULT_AUGMENT_HIGHLIGHT_MODE)
+const highlightModeSaving = ref(false)
+
+const loadHighlightMode = async () => {
+  if (!hasElectronAPI()) {
+    return
+  }
+
+  try {
+    highlightMode.value = normalizeAugmentHighlightMode(
+      await electronAPI.store.get(AUGMENT_HIGHLIGHT_MODE_STORE_KEY)
+    )
+  } catch (error) {
+    console.warn('读取高亮计算方式失败:', error)
+  }
+}
+
+const changeHighlightMode = async (mode) => {
+  if (!isAugmentHighlightMode(mode) || mode === highlightMode.value) {
+    return
+  }
+
+  const previousMode = highlightMode.value
+  highlightMode.value = mode
+  if (!hasElectronAPI()) {
+    return
+  }
+
+  highlightModeSaving.value = true
+  try {
+    await electronAPI.store.set(AUGMENT_HIGHLIGHT_MODE_STORE_KEY, mode)
+  } catch (error) {
+    highlightMode.value = previousMode
+    console.warn('保存高亮计算方式失败:', error)
+  } finally {
+    highlightModeSaving.value = false
+  }
+}
+
+onMounted(() => {
+  loadPreferences()
+  loadHighlightMode()
+})
 </script>
 
 <style scoped>
@@ -300,6 +387,17 @@ onMounted(loadPreferences)
   font-size: 11px;
   font-weight: 700;
   line-height: 1.45;
+}
+
+.highlight-mode-trigger {
+  width: 112px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  border-radius: 4px;
+  color: var(--lol-ivory);
+  background: rgba(7, 18, 27, 0.78) !important;
+  border-color: rgba(226, 192, 143, 0.22) !important;
 }
 
 .switch-control {
