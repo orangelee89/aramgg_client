@@ -1,6 +1,6 @@
 {
   "name": "aramgg_banma_city",
-  "version": "0.2.17",
+  "version": "0.0.1",
   "description": "Electron companion for League of Legends ARAM recommendations and augment OCR.",
   "author": "ARAMGG",
   "private": true,

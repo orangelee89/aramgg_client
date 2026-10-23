@@ -4,7 +4,7 @@
 // 用法：node scripts/tencent-data/sync-tencent-data.mjs --out <目录>
 //
 // 输出：
-//   global.json            {schemaVersion, hash, fetchedAt, names, rune, hero, localizedNames}
+//   global.json            {schemaVersion, hash, fetchedAt, gamePatch, names, rune, hero, localizedNames}
 //                          names 是掌盟海克斯名称表，name_cn 已换成 Riot zh_MY（马来西亚简中）译名，
 //                          原国服名保留在 name_cn_tencent；localizedNames 是英雄 / 装备的 zh_MY 名。
 //                          rune、hero 为掌盟原文。
@@ -43,6 +43,8 @@ const CDRAGON_ITEMS_URL = `${CDRAGON_ZH_MY}/items.json`
 const MIN_LOCALIZED_AUGMENTS = 100
 const MIN_LOCALIZED_CHAMPIONS = 100
 const MIN_LOCALIZED_ITEMS = 100
+// 正式服补丁号（如 16.21），给客户端界面显示数据对应的游戏版本。
+const CDRAGON_METADATA_URL = 'https://raw.communitydragon.org/latest/content-metadata.json'
 
 export function contentHash(text) {
   return createHash('sha256').update(text).digest('hex').slice(0, 16)
@@ -300,8 +302,26 @@ async function readText(filePath) {
   }
 }
 
-function globalBody(hash, fetchedAt, names, rune, hero, localizedNames) {
-  return `{"schemaVersion":${SCHEMA_VERSION},"hash":${JSON.stringify(hash)},"fetchedAt":${JSON.stringify(fetchedAt)},"names":${names},"rune":${rune},"hero":${hero},"localizedNames":${localizedNames}}\n`
+export function parseGamePatch(metadataText) {
+  try {
+    const match = /^(\d+)\.(\d+)\./.exec(String(JSON.parse(metadataText)?.version || ''))
+    return match ? `${match[1]}.${match[2]}` : null
+  } catch {
+    return null
+  }
+}
+
+async function fetchGamePatch(fetchImpl, previousGlobal, log, retryDelayMs) {
+  const text = await fetchOptional(fetchImpl, CDRAGON_METADATA_URL, log, retryDelayMs)
+  const patch = text ? parseGamePatch(text) : null
+  if (patch) return patch
+  const previous = typeof previousGlobal?.gamePatch === 'string' ? previousGlobal.gamePatch : ''
+  log(`[patch] 取不到正式服补丁号，沿用上一份：${previous || '无'}`)
+  return previous
+}
+
+function globalBody(hash, fetchedAt, gamePatch, names, rune, hero, localizedNames) {
+  return `{"schemaVersion":${SCHEMA_VERSION},"hash":${JSON.stringify(hash)},"fetchedAt":${JSON.stringify(fetchedAt)},"gamePatch":${JSON.stringify(gamePatch)},"names":${names},"rune":${rune},"hero":${hero},"localizedNames":${localizedNames}}\n`
 }
 
 function championBody(hash, fetchedAt, payload) {
@@ -359,12 +379,13 @@ export async function syncTencentData({
   const previousGlobal = await readJson(globalPath)
   const localized = await buildLocalized({ fetchImpl, names: tencentNames, previousGlobal, log, retryDelayMs })
   const { names, localizedNames } = localized
-  const globalHash = contentHash(`${names}\n${rune}\n${hero}\n${localizedNames}`)
+  const gamePatch = await fetchGamePatch(fetchImpl, previousGlobal, log, retryDelayMs)
+  const globalHash = contentHash(`${gamePatch}\n${names}\n${rune}\n${hero}\n${localizedNames}`)
   let globalFetchedAt = fetchedAt
   if (previousGlobal?.hash === globalHash) {
     globalFetchedAt = previousGlobal.fetchedAt
   } else {
-    await writeIfChanged(globalPath, globalBody(globalHash, fetchedAt, names, rune, hero, localizedNames), null)
+    await writeIfChanged(globalPath, globalBody(globalHash, fetchedAt, gamePatch, names, rune, hero, localizedNames), null)
     changedFiles += 1
   }
 
