@@ -11,6 +11,8 @@ export type TencentAugmentMeta = {
   description: string | null
   tooltip: string | null
   isNew: boolean
+  // 镜像把 name 换成了马服（zh_MY）译名，原国服名放在这里，只给 OCR 当别名。
+  aliasNames: string[]
 }
 
 export type TencentAugmentStat = {
@@ -109,6 +111,7 @@ export function parseKiwiAugments(payload: any): TencentAugmentMeta[] {
       description: typeof record?.desc === 'string' ? record.desc : null,
       tooltip: typeof record?.tooltip === 'string' ? record.tooltip : null,
       isNew: Number(record?.isNew) === 1,
+      aliasNames: [String(record?.name_cn_tencent ?? '').trim()].filter((alias) => alias && alias !== name),
     })
   }
 

@@ -18,6 +18,7 @@ import {
   overlayAugmentsPayload,
   overlayChampionDetail,
   overlayChampionsPayload,
+  overlayItemsPayload,
 } from './services/tencent-data/tencent-overlay.ts'
 
 declare const fetch: any
@@ -1465,7 +1466,11 @@ async function loadAugmentsPayload(locale: SupportedDataLocale = activeDataLocal
 }
 
 async function loadItemsPayload(locale: SupportedDataLocale = activeDataLocale): Promise<any> {
-  return loadDataFile('items.json', locale)
+  const [payload, snapshot] = await Promise.all([
+    loadDataFile('items.json', locale),
+    getTencentSnapshotForLocale(locale),
+  ])
+  return overlayItemsPayload(payload, snapshot)
 }
 
 async function loadChampionShardIndexForDataSet(
@@ -1862,6 +1867,7 @@ function mapPublicAugmentBase(augment: any): any {
     iconUrl: augment.iconUrl || null,
     key: augment.key || null,
     enabled: augment.enabled ?? null,
+    aliasNames: Array.isArray(augment.aliasNames) ? augment.aliasNames : [],
     description: augment.description || null,
     tooltip: augment.tooltip || null,
   }

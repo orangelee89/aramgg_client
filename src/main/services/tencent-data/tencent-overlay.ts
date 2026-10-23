@@ -17,6 +17,8 @@ export type TencentGlobalSnapshot = {
   augments: TencentAugmentMeta[]
   augmentStats: TencentAugmentStat[]
   championStats: TencentChampionStat[]
+  // 镜像下发的英雄 / 装备展示名（马服 zh_MY 译名）；直连掌盟时没有。
+  localizedNames?: { champions: Record<string, string>; items: Record<string, string> }
 }
 
 export type TencentChampionSnapshot = {
@@ -70,6 +72,7 @@ function buildAugmentFromMeta(meta: TencentAugmentMeta): any {
     iconUrl: meta.iconUrl,
     key: null,
     enabled: true,
+    aliasNames: meta.aliasNames || [],
     description: meta.description,
     tooltip: meta.tooltip,
     statsAvailable: false,
@@ -77,6 +80,23 @@ function buildAugmentFromMeta(meta: TencentAugmentMeta): any {
     stages: [],
     topChampions: [],
   }
+}
+
+// 展示名以镜像（马服译名）为准；被替换下来的旧名并入 aliasNames，OCR 仍能用它们匹配。
+function withMetaName(augment: any, meta: TencentAugmentMeta | undefined): any {
+  if (!meta || !augment) {
+    return augment
+  }
+
+  const aliases = [...(meta.aliasNames || []), ...(Array.isArray(augment.aliasNames) ? augment.aliasNames : []), augment.name]
+    .map((name) => String(name || '').trim())
+    .filter((name, index, list) => name && name !== meta.name && list.indexOf(name) === index)
+  return { ...augment, name: meta.name, aliasNames: aliases }
+}
+
+function localizedName(map: Record<string, string> | undefined, id: unknown): string | null {
+  const name = map?.[String(id ?? '')]
+  return typeof name === 'string' && name.trim() ? name.trim() : null
 }
 
 export function overlayAugmentsPayload(payload: any, snapshot: TencentGlobalSnapshot | null): any {
@@ -120,7 +140,7 @@ export function overlayAugmentsPayload(payload: any, snapshot: TencentGlobalSnap
     }
 
     seen.add(id)
-    list.push(applyStats(augment, id))
+    list.push(applyStats(withMetaName(augment, metaById.get(id)), id))
   }
 
   for (const meta of metaById.values()) {
@@ -153,16 +173,36 @@ function championStats(champion: any, stat: TencentChampionStat, total: number, 
   }
 }
 
+function withChampionName(champion: any, snapshot: TencentGlobalSnapshot): any {
+  const name = localizedName(snapshot.localizedNames?.champions, champion?.id ?? champion?.championId)
+  return name ? { ...champion, name } : champion
+}
+
 export function overlayChampionsPayload(payload: any, snapshot: TencentGlobalSnapshot | null): any {
-  if (!snapshot || snapshot.championStats.length === 0) {
+  if (!snapshot) {
     return payload
   }
 
   const statById = new Map(snapshot.championStats.map((stat) => [stat.championId, stat]))
   const total = snapshot.championStats.length
   const list = getList(payload).map((champion: any) => {
+    const named = withChampionName(champion, snapshot)
     const stat = statById.get(String(champion?.id ?? champion?.championId ?? ''))
-    return stat ? { ...champion, stats: championStats(champion, stat, total, snapshot) } : champion
+    return stat ? { ...named, stats: championStats(champion, stat, total, snapshot) } : named
+  })
+
+  return cloneWithList(payload, list)
+}
+
+export function overlayItemsPayload(payload: any, snapshot: TencentGlobalSnapshot | null): any {
+  const names = snapshot?.localizedNames?.items
+  if (!names || Object.keys(names).length === 0) {
+    return payload
+  }
+
+  const list = getList(payload).map((item: any) => {
+    const name = localizedName(names, item?.id)
+    return name ? { ...item, name } : item
   })
 
   return cloneWithList(payload, list)
@@ -181,23 +221,25 @@ export function overlayChampionDetail(
   const championId = String(detail.championId ?? detail.champion?.id ?? '')
 
   if (snapshot && detail.champion) {
+    const named = withChampionName(detail.champion, snapshot)
     const stat = snapshot.championStats.find((entry) => entry.championId === championId)
-    if (stat) {
-      result.champion = {
-        ...detail.champion,
-        stats: championStats(detail.champion, stat, snapshot.championStats.length, snapshot),
-      }
-    }
+    result.champion = stat
+      ? { ...named, stats: championStats(detail.champion, stat, snapshot.championStats.length, snapshot) }
+      : named
+  }
+
+  const metaById = new Map((snapshot?.augments || []).map((meta) => [meta.id, meta]))
+  if (Array.isArray(detail.augments) && metaById.size > 0) {
+    result.augments = detail.augments.map((augment: any) => withMetaName(augment, metaById.get(String(augment?.id ?? ''))))
   }
 
   const ranked = championSnapshot?.augments || []
   if (ranked.length > 0) {
     const existingById = new Map<string, any>(
-      (Array.isArray(detail.augments) ? detail.augments : [])
+      (Array.isArray(result.augments) ? result.augments : [])
         .filter((augment: any) => augment?.id != null)
         .map((augment: any) => [String(augment.id), augment])
     )
-    const metaById = new Map((snapshot?.augments || []).map((meta) => [meta.id, meta]))
     const total = ranked.length
     const date = championSnapshot?.fetchedAt.slice(0, 10) || ''
 

@@ -40,19 +40,61 @@ export function championText(championId: string, pickRate = 0.2): string {
   return odpText({ augment_json_irank: `255:${rows}` }, 'R15318')
 }
 
+// Riot zh_MY（马来西亚简中）译名：1001 对应国服「命运之武器」，马服叫「命定武器」（取自 CDragon 实际数据）。
+export const ZH_MY_WEAPON_NAME = '命定武器'
+export const ZH_MY_MISSING_ID = 1060
+
+export function cdragonAugmentsText(): string {
+  const list: any[] = Array.from({ length: 60 }, (_, index) => ({
+    id: 1001 + index,
+    augmentNameId: index === 0 ? 'WeaponOfDestiny' : `ARAM_Augment${index}`,
+    nameTRA: index === 0 ? ZH_MY_WEAPON_NAME : `马服海克斯${index}`,
+    rarity: 'kGold',
+  })).filter((entry) => entry.id !== ZH_MY_MISSING_ID)
+  for (let index = 0; index < 60; index++) {
+    list.push({ id: 5001 + index, augmentNameId: `ARAM_Extra${index}`, nameTRA: `马服额外${index}`, rarity: 'kSilver' })
+  }
+  list.push({ id: 9001, augmentNameId: 'ArenaOnly', nameTRA: '斗魂竞技场专属', rarity: 'kGold' })
+  return JSON.stringify(list)
+}
+
+export function cdragonChampionsText(): string {
+  return JSON.stringify([
+    { id: -1, name: '无' },
+    ...Array.from({ length: 120 }, (_, index) => ({ id: index + 1, name: `马服英雄${index + 1}` })),
+  ])
+}
+
+export function cdragonItemsText(): string {
+  return JSON.stringify(Array.from({ length: 120 }, (_, index) => ({ id: 3000 + index, name: `马服装备${index}` })))
+}
+
 export type FakeTencent = {
   winRate: number
   championPick: Record<string, number>
   failChampions: Set<string>
   brokenRune: boolean
+  cdragonDown: boolean
   calls: string[]
 }
 
 export function createFakeTencent(): FakeTencent {
-  return { winRate: 0.5, championPick: {}, failChampions: new Set(), brokenRune: false, calls: [] }
+  return { winRate: 0.5, championPick: {}, failChampions: new Set(), brokenRune: false, cdragonDown: false, calls: [] }
 }
 
 export function fakeTencentResponse(tencent: FakeTencent, url: string): Response | null {
+  if (url.startsWith('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/zh_my/v1/')) {
+    tencent.calls.push(url)
+    if (tencent.cdragonDown) {
+      return new Response('down', { status: 503 })
+    }
+
+    if (url.endsWith('/cherry-augments.json')) return new Response(cdragonAugmentsText())
+    if (url.endsWith('/champion-summary.json')) return new Response(cdragonChampionsText())
+    if (url.endsWith('/items.json')) return new Response(cdragonItemsText())
+    return null
+  }
+
   if (url.startsWith('https://game.gtimg.cn/images/lol/act/img/js/kiwi/kiwi_augments.json')) {
     tencent.calls.push(url)
     return new Response(namesText())
