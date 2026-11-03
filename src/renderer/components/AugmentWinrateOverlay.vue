@@ -3,10 +3,10 @@
     <div
       v-if="visible"
       class="augment-overlay"
-      :class="{ 'side-panel-mode': isSidePanel }"
+      :class="{ 'side-panel-mode': isSidePanel, 'in-game-guide-mode': inGameGuide }"
     >
       <header class="insight-titlebar">
-        <h1>{{ isSidePanel ? t('augment.recommendation') : t('augment.championDetails') }}</h1>
+        <h1>{{ inGameGuide ? t('inGameGuide.title') : isSidePanel ? t('augment.recommendation') : t('augment.championDetails') }}</h1>
         <div class="window-controls">
           <button v-if="isSidePanel" class="window-control" type="button" :aria-label="t('common.minimize')" @click="closeOverlay('manual')">
             <Minus class="window-icon" />
@@ -27,6 +27,11 @@
       <div v-else-if="error" class="error-state">
         <p>{{ error }}</p>
       </div>
+
+      <InGameGuide v-else-if="inGameGuide && contentVisible"
+        :champion-id="Number(championId)" :champion-name="championName"
+        :route="buildRoutes[0]" :augments="displayAugments" :loading="championDataLoading"
+        :item-name="getItemName" :item-icon="getItemIconUrl" />
 
       <!-- 主内容区 -->
       <div v-else-if="contentVisible" class="overlay-content">
@@ -99,10 +104,6 @@
             <div class="stat-box">
               <span>{{ t('augment.pickRate') }}</span>
               <strong>{{ championDataLoading ? t('augment.reading') : formatPercent(championStats?.pickRate) }}</strong>
-            </div>
-            <div class="stat-box">
-              <span>{{ t('augment.games') }}</span>
-              <strong>{{ championDataLoading ? t('augment.reading') : formatNumber(championStats?.numGames) }}</strong>
             </div>
           </section>
 
@@ -429,6 +430,19 @@
                 <p>{{ t('augment.noBuilds') }}</p>
               </div>
             </div>
+
+            <!-- 版本改动 Tab -->
+            <div v-if="!isSidePanel && activeTab === 'patches'" class="tab-panel">
+              <PatchTrendsPanel
+                v-if="championId && patchEvidence"
+                :evidence="patchEvidence"
+                :champion-id="Number(championId)"
+                :augment-names="patchAugmentNames"
+              />
+              <div v-else class="empty-state" role="status">
+                <p>{{ championDataLoading ? t('augment.reading') : t('augment.noData') }}</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -511,6 +525,8 @@ import {
 } from '../service/overlay-formatters.ts'
 import { useAugmentTooltip } from '../composables/use-augment-tooltip.ts'
 import AramBenchRecommendation from './AramBenchRecommendation.vue'
+import PatchTrendsPanel from './PatchTrendsPanel.vue'
+import InGameGuide from './InGameGuide.vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
@@ -524,6 +540,7 @@ const { t } = useI18n()
 
 const DEFAULT_ACTIVE_TAB = 'augments'
 const visible = ref(false)
+const inGameGuide = ref(false)
 const loading = ref(false)
 const championDataLoading = ref(false)
 const error = ref(null)
@@ -539,6 +556,8 @@ const champSelectMode = ref(false)
 
 // 英雄数据
 const championStats = ref(null)
+const patchEvidence = ref(null)
+const patchAugmentNames = computed(() => Object.fromEntries(augmentBase.value.filter(augment => augment?.name).map(augment => [Number(augment.id), augment.name])))
 const augmentBase = ref([])
 const augmentStats = ref({})
 const buildData = ref(null)
@@ -754,6 +773,7 @@ const configureCurrentChampionItems = async (automatic = false) => {
 const tabs = computed(() => [
   { key: 'augments', label: t('augment.tabs.augments') },
   { key: 'builds', label: t('augment.tabs.builds') },
+  ...(!isSidePanel.value ? [{ key: 'patches', label: t('augment.tabs.patches') }] : []),
 ])
 
 // 稀有度选项
@@ -873,6 +893,7 @@ const mapChampionAugmentRows = (augments = [], statsById = {}) => {
 }
 
 const applyFallbackChampionData = (data) => {
+  patchEvidence.value = null
   championStats.value = {
     championId: String(data?.championId || championId.value || ''),
     id: data?.championId || championId.value || null,
@@ -972,6 +993,7 @@ const getItemIconUrl = (itemId) => itemIconById.value.get(String(itemId)) || get
  * 显示浮窗
  */
 const showOverlay = async (data) => {
+  inGameGuide.value = !isSidePanel.value && (data?.presentation === 'in-game' || data?.dataSource === 'in-progress')
   if (data && !data.pending && !data.error) {
     lastOverlayPayload = data
   }
@@ -995,6 +1017,7 @@ const showOverlay = async (data) => {
   championDataLoading.value = false
   error.value = null
   championStats.value = null
+  patchEvidence.value = null
   buildData.value = null
   itemsData.value = {}
   championLinks.value = {}
@@ -1108,6 +1131,7 @@ const showOverlay = async (data) => {
         championLinks: linksData,
       } = result.data
       championStats.value = stats
+      patchEvidence.value = result.data.patchEvidence || null
       augmentBase.value = augments
       augmentStats.value = augStats
       buildData.value = { builds: Array.isArray(builds) ? builds : [] }
@@ -1218,6 +1242,7 @@ const closeOverlay = (reason = 'manual') => {
   visible.value = false
   championNameData.value = null
   championStats.value = null
+  patchEvidence.value = null
   championDataLoading.value = false
   champSelectMode.value = false
   benchPreviewRecommendation.value = null
@@ -1315,6 +1340,7 @@ onMounted(() => {
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('augment-detected', (data) => {
+    if (inGameGuide.value) return
     logOverlayInfo('augment-detected received', {
       championId: data?.championId || null,
       augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
@@ -1348,6 +1374,7 @@ onMounted(() => {
       return
     }
 
+    inGameGuide.value = true
     logOverlayInfo('game-in-progress received; champion insight visibility handled by main process')
   }))
 
@@ -1404,6 +1431,16 @@ defineExpose({
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.augment-overlay.in-game-guide-mode {
+  width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+}
+
+.in-game-guide-mode .insight-titlebar h1 {
+  font-size: 14px;
 }
 
 .overlay-fade-enter-active,
@@ -2451,7 +2488,7 @@ defineExpose({
 
 .stat-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 12px 18px 0;
 }
@@ -2500,7 +2537,7 @@ defineExpose({
 
 .tabs-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 14px 18px 0;
   background: transparent;
@@ -2508,6 +2545,7 @@ defineExpose({
 }
 
 .side-panel-mode .tabs-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding-top: 12px;
 }
 

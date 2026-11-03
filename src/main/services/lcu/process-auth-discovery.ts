@@ -4,6 +4,7 @@ import path from 'path'
 import { promisify } from 'util'
 import logger from '../../modules/logger.ts'
 import type { TokenLoadResult } from './types.ts'
+import { getDarwinLeagueRoot, parseDarwinLeagueProcesses } from './darwin-process-discovery.ts'
 
 const execFileAsync = promisify(execFile)
 
@@ -352,7 +353,9 @@ function getLockfileCandidates(record: Win32ProcessRecord): string[] {
   }
 
   const executableDir = path.dirname(executablePath)
+  const darwinRoot = getDarwinLeagueRoot(executablePath)
   return [
+    ...(darwinRoot ? [path.join(darwinRoot, 'lockfile')] : []),
     path.join(executableDir, 'lockfile'),
     path.resolve(executableDir, '..', 'lockfile'),
   ]
@@ -461,62 +464,6 @@ const MAC_LOCKFILE_CANDIDATES = [
   '/Applications/League of Legends.app/Contents/LoL/lockfile',
 ]
 
-/**
- * 解析 `ps -axo pid=,command=` 的输出，挑出 League 客户端进程。
- * 命令行里带 --remoting-auth-token / --app-port，可直接复用 Windows 的解析逻辑。
- */
-export function parseMacProcessList(stdout: string): Win32ProcessRecord[] {
-  const records: Win32ProcessRecord[] = []
-  for (const rawLine of String(stdout || '').split('\n')) {
-    const line = rawLine.trim()
-    const match = /^(\d+)\s+(.+)$/.exec(line)
-    if (!match) {
-      continue
-    }
-    const commandLine = match[2]
-    if (!/LeagueClientUx|LeagueClient(?:\s|$|\/)/.test(commandLine) || /LeagueClientUxRender|LeagueClientUxHelper/.test(commandLine)) {
-      continue
-    }
-    const isUx = /LeagueClientUx/.test(commandLine)
-    // macOS 安装路径带空格（"League of Legends.app"），非贪婪匹配到可执行文件名为止
-    const executableMatch = /^(\/.*?\/(?:LeagueClientUx|LeagueClient))(?:\s|$)/.exec(commandLine)
-    records.push({
-      Name: isUx ? 'LeagueClientUx' : 'LeagueClient',
-      ProcessId: Number(match[1]),
-      CommandLine: commandLine,
-      ExecutablePath: executableMatch ? executableMatch[1] : null,
-    })
-  }
-  return records
-}
-
-async function queryMacLeagueClientProcesses(): Promise<ProcessQueryResult> {
-  const startedAt = Date.now()
-  try {
-    const { stdout } = await execFileAsync('ps', ['-axo', 'pid=,command='], {
-      timeout: 4000,
-      maxBuffer: 1024 * 1024,
-      encoding: 'utf8',
-    })
-    const records = parseMacProcessList(String(stdout || ''))
-    return {
-      records,
-      attempts: [{
-        strategy: 'ps',
-        timeoutMs: 4000,
-        durationMs: Date.now() - startedAt,
-        succeeded: true,
-        recordCount: records.length,
-        usableRecordCount: records.filter(hasUsableProcessMetadata).length,
-        error: null,
-      }],
-    }
-  } catch (error) {
-    logger.debug('[LCU discovery] ps query failed:', error instanceof Error ? error.message : String(error))
-    return { records: [], attempts: [] }
-  }
-}
-
 async function readMacLockfileFallback(): Promise<TokenLoadResult> {
   for (const lockfilePath of MAC_LOCKFILE_CANDIDATES) {
     try {
@@ -533,7 +480,25 @@ async function readMacLockfileFallback(): Promise<TokenLoadResult> {
 
 async function queryLeagueClientProcesses(): Promise<ProcessQueryResult> {
   if (process.platform === 'darwin') {
-    return queryMacLeagueClientProcesses()
+    const startedAt = Date.now()
+    // Do not include stdout or command lines in diagnostics: they contain LCU tokens.
+    try {
+      const { stdout } = await execFileAsync('/bin/ps', ['-axww', '-o', 'pid=,args='], {
+        timeout: GET_PROCESS_QUERY_TIMEOUT_MS,
+        maxBuffer: 4 * 1024 * 1024,
+        encoding: 'utf8',
+      })
+      const records = parseDarwinLeagueProcesses(stdout)
+      processDiscoveryQueryCount += 1
+      lastProcessDiscoveryQueryAt = Date.now()
+      lastProcessDiscoveryQueryDurationMs = Date.now() - startedAt
+      processDiscoveryTotalDurationMs += lastProcessDiscoveryQueryDurationMs
+      lastProcessDiscoveryRecordCount = records.length
+      return { records, attempts: [] }
+    } catch {
+      logger.debug('[LCU discovery] macOS process query unavailable')
+      return { records: [], attempts: [] }
+    }
   }
   if (process.platform !== 'win32') {
     return { records: [], attempts: [] }
@@ -606,8 +571,8 @@ export async function discoverLcuAuthFromProcess(
 
     const { records, attempts } = await queryLeagueClientProcesses()
   const sortedRecords = records.sort((a, b) => {
-    const aIsUx = String(a.Name || '').startsWith('LeagueClientUx') ? 1 : 0
-    const bIsUx = String(b.Name || '').startsWith('LeagueClientUx') ? 1 : 0
+    const aIsUx = /^LeagueClientUx(?:\.exe)?$/.test(a.Name || '') ? 1 : 0
+    const bIsUx = /^LeagueClientUx(?:\.exe)?$/.test(b.Name || '') ? 1 : 0
     return bIsUx - aIsUx
   })
 

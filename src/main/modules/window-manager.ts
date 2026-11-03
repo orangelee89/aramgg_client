@@ -6,6 +6,7 @@ import {
     type Event,
     type Rectangle,
     type WebPreferences,
+    type WebContents,
 } from 'electron'
 import { createServer } from 'http'
 import { createReadStream, existsSync } from 'fs'
@@ -31,6 +32,8 @@ import {
     shouldShowAugmentTopOverlay,
 } from './user-preferences.ts'
 import type { GameflowPhase } from '../../shared/ipc-contract.ts'
+import { MAX_MATCH_DETAIL_WINDOWS, type OwnedMatchDetailSnapshot } from '../services/match-history/match-detail-snapshots.ts'
+import { getMacCaptureDiagnostics } from './mac-game-capture.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -51,6 +54,10 @@ const RENDERER_CONTENT_SECURITY_POLICY = [
 let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
 let popupGameflowPhase: GameflowPhase | null = null
+let popupOpenedManually = false
+// 按住 Tab 打开的局内速查点击穿透；松开、隐藏或阶段变化后恢复。
+let popupClickThrough = false
+let popupRequestedVisible = false
 let floatingWindow: BrowserWindow | null = null
 let augmentSidePanelWindow: BrowserWindow | null = null
 let postGamePosterWindow: BrowserWindow | null = null
@@ -58,6 +65,9 @@ let appQuitting = false
 let quitListenerRegistered = false
 let mainWindowCloseAllowed = false
 let rendererServerPromise: Promise<string> | null = null
+const matchDetailWindows = new Map<string, BrowserWindow>()
+const matchDetailInflight = new Map<string, Promise<void>>()
+const matchDetailOwners = new Map<WebContents, OwnedMatchDetailSnapshot>()
 
 const MAIN_WINDOW_SIZE = { width: 472, height: 752 }
 const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
@@ -65,7 +75,14 @@ const POPUP_WINDOW_POSITION_KEY = 'windows.championInsightPosition'
 const FLOATING_WINDOW_SIZE = { width: 760, height: 170 }
 const AUGMENT_SIDE_PANEL_WINDOW_SIZE = { width: 360, height: 640 }
 const POST_GAME_POSTER_WINDOW_SIZE = { width: 470, height: 960 }
-const OVERLAY_ALWAYS_ON_TOP_LEVEL = process.platform === 'win32' ? 'screen-saver' : 'floating'
+const OVERLAY_ALWAYS_ON_TOP_LEVEL = ['win32', 'darwin'].includes(process.platform) ? 'screen-saver' : 'floating'
+const macOverlayOrderRefreshedAt = new WeakMap<BrowserWindow, number>()
+const requestedOverlayVisibility = new WeakSet<BrowserWindow>()
+
+function trackOverlayVisibility(window: BrowserWindow): void {
+    window.on('hide', () => requestedOverlayVisibility.delete(window))
+    window.on('closed', () => requestedOverlayVisibility.delete(window))
+}
 const MIME_TYPES: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -196,14 +213,20 @@ export function applyAugmentSidePanelWindowLayout() {
 }
 
 export function applyPopupWindowPreferences(phase: GameflowPhase | null = popupGameflowPhase): void {
+    if (phase !== popupGameflowPhase) {
+        if (popupClickThrough) setPopupClickThrough(false)
+        if (phase === 'GameStart' || phase === 'InProgress') popupOpenedManually = false
+    }
     popupGameflowPhase = phase
     if (!popupWindow || popupWindow.isDestroyed()) {
         return
     }
 
-    setOverlayAlwaysOnTop(popupWindow, shouldKeepChampionInsightOnTop(), 'popup')
     const inGame = phase === 'GameStart' || phase === 'InProgress'
-    if ((!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart())) &&
+    // 局内主动打开的攻略需要压在全屏游戏上方，不受“强制置顶”偏好限制。
+    setOverlayAlwaysOnTop(popupWindow,
+        popupClickThrough || (popupOpenedManually && inGame) || shouldKeepChampionInsightOnTop(), 'popup')
+    if (!popupOpenedManually && (!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart())) &&
         popupWindow.isVisible()) {
         popupWindow.hide()
     }
@@ -254,6 +277,35 @@ export function hidePostGamePosterWindow(): void {
     }
 }
 
+export function getPopupPresentation() {
+    return { visible: popupRequestedVisible, explicit: popupOpenedManually, clickThrough: popupClickThrough }
+}
+
+function setPopupClickThrough(clickThrough: boolean): void {
+    popupClickThrough = clickThrough
+    if (popupWindow && !popupWindow.isDestroyed()) {
+        popupWindow.setIgnoreMouseEvents(clickThrough, { forward: true })
+    }
+}
+
+/**
+ * 当前英雄攻略/局内速查的展示方式：explicit 复用手动打开语义，clickThrough 仅用于 Tab 速查。
+ */
+export function setPopupPresentation(explicit: boolean, clickThrough = false): void {
+    popupOpenedManually = explicit
+    setPopupClickThrough(clickThrough)
+    applyPopupWindowPreferences()
+}
+
+export function showPopupWindowManually(): void {
+    if (!popupWindow || popupWindow.isDestroyed()) return
+    popupOpenedManually = true
+    if (popupWindow.isMinimized()) popupWindow.restore()
+    applyPopupWindowLayout()
+    popupWindow.show()
+    popupWindow.focus()
+}
+
 function setOverlayAlwaysOnTop(
     window: BrowserWindow | null,
     alwaysOnTop: boolean = true,
@@ -263,13 +315,19 @@ function setOverlayAlwaysOnTop(
         return
     }
 
-    if (process.platform === 'darwin' && typeof window.setVisibleOnAllWorkspaces === 'function') {
-        // macOS：让浮窗能出现在全屏游戏之上
-        window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    }
-
     try {
-        window.setAlwaysOnTop(Boolean(alwaysOnTop), OVERLAY_ALWAYS_ON_TOP_LEVEL)
+        if (process.platform === 'darwin' &&
+            window.isVisibleOnAllWorkspaces() !== Boolean(alwaysOnTop)) {
+            window.setVisibleOnAllWorkspaces(Boolean(alwaysOnTop), { visibleOnFullScreen: true })
+        }
+        if (process.platform === 'darwin' &&
+            (window === floatingWindow || window === augmentSidePanelWindow || window === popupWindow)) {
+            // League's fullscreen window is itself at screen-saver (1000).
+            // A same-level panel can be covered again as soon as the game activates.
+            window.setAlwaysOnTop(Boolean(alwaysOnTop), OVERLAY_ALWAYS_ON_TOP_LEVEL, alwaysOnTop ? 1 : 0)
+        } else {
+            window.setAlwaysOnTop(Boolean(alwaysOnTop), OVERLAY_ALWAYS_ON_TOP_LEVEL)
+        }
     } catch (error) {
         logger.debug(
             `[window:${name}] failed to apply high always-on-top level:`,
@@ -283,11 +341,13 @@ export function raiseOverlayWindow(
     window: BrowserWindow | null,
     name: string = 'overlay'
 ): void {
-    if (!window || window.isDestroyed() || !shouldRaiseOverlayWindow(window)) {
+    if (!window || window.isDestroyed() ||
+        (process.platform !== 'darwin' && !shouldRaiseOverlayWindow(window))) {
         return
     }
 
     setOverlayAlwaysOnTop(window, true, name)
+    requestedOverlayVisibility.add(window)
 
     if (window.isMinimized()) {
         window.restore()
@@ -301,6 +361,26 @@ export function raiseOverlayWindow(
 
     if (typeof window.moveTop === 'function') {
         window.moveTop()
+    }
+    if (process.platform === 'darwin') {
+        logger.info(`[window:${name}] Mac overlay requested`, getMacCaptureDiagnostics(window))
+    }
+}
+
+export function refreshVisibleMacAugmentOverlayOrder(now = Date.now()): void {
+    if (process.platform !== 'darwin') return
+    for (const [window, enabled, name] of [
+        [floatingWindow, shouldShowAugmentTopOverlay(), 'floating'],
+        [augmentSidePanelWindow, shouldShowAugmentSidePanel(), 'augment-side-panel'],
+    ] as const) {
+        if (!enabled || !window || window.isDestroyed() || !requestedOverlayVisibility.has(window)) continue
+        const lastRefresh = macOverlayOrderRefreshedAt.get(window)
+        if (lastRefresh !== undefined && now - lastRefresh < 1500) continue
+        // An occluded Mac window's isVisible() does not represent our requested state.
+        setOverlayAlwaysOnTop(window, true, name)
+        window.showInactive()
+        window.moveTop()
+        macOverlayOrderRefreshedAt.set(window, now)
     }
 }
 
@@ -599,6 +679,7 @@ export const createMainWindow = async (
         }
 
         logger.info('Main window closing...')
+        closeMatchDetailWindows()
         // 关闭主窗口时，同时关闭 popup 窗口和浮动窗口
         if (popupWindow && !popupWindow.isDestroyed()) {
             logger.info('Closing popup window...')
@@ -642,6 +723,7 @@ export const createPopupWindow = async (
     const bounds = getPopupBounds()
 
     popupWindow = new BrowserWindow({
+        ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
         show: false,
         frame: false,
         skipTaskbar: true,
@@ -653,7 +735,15 @@ export const createPopupWindow = async (
         webPreferences,
     })
     applyPopupWindowPreferences()
-    popupWindow.on('show', () => applyPopupWindowPreferences())
+    popupWindow.on('show', () => { popupRequestedVisible = true; applyPopupWindowPreferences() })
+    popupWindow.on('hide', () => {
+        // macOS may deliver an earlier hide after a new explicit show.
+        if (!popupWindow?.isVisible()) {
+            popupOpenedManually = false
+            popupRequestedVisible = false
+            setPopupClickThrough(false)
+        }
+    })
     attachWindowDiagnostics('popup', popupWindow)
 
     if (process.platform === 'linux') {
@@ -664,6 +754,9 @@ export const createPopupWindow = async (
 
     popupWindow.on('closed', () => {
         logger.info('Popup window closed')
+        popupOpenedManually = false
+        popupClickThrough = false
+        popupRequestedVisible = false
         popupWindow = null
     })
 
@@ -690,6 +783,7 @@ export const createAugmentSidePanelWindow = async (
 
     augmentSidePanelWindow = new BrowserWindow({
         show: false,
+        ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
         frame: false,
         transparent: true,
         skipTaskbar: true,
@@ -702,6 +796,7 @@ export const createAugmentSidePanelWindow = async (
     })
     setOverlayAlwaysOnTop(augmentSidePanelWindow, true, 'augment-side-panel')
     attachWindowDiagnostics('augment-side-panel', augmentSidePanelWindow)
+    trackOverlayVisibility(augmentSidePanelWindow)
 
     augmentSidePanelWindow.on('closed', () => {
         logger.info('Augment side panel window closed')
@@ -742,6 +837,7 @@ export const createFloatingWindow = async (
 
     floatingWindow = new BrowserWindow({
         show: false,
+        ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
         frame: false,           // 无边框
         transparent: true,      // 透明背景
         skipTaskbar: true,      // 不在任务栏显示
@@ -754,9 +850,10 @@ export const createFloatingWindow = async (
     })
     setOverlayAlwaysOnTop(floatingWindow, true, 'floating')
     attachWindowDiagnostics('floating', floatingWindow)
+    trackOverlayVisibility(floatingWindow)
 
     // 设置窗口忽略鼠标事件（透传点击）
-    // floatingWindow.setIgnoreMouseEvents(true, { forward: true })
+    if (process.platform === 'darwin') floatingWindow.setIgnoreMouseEvents(true, { forward: true })
 
     floatingWindow.on('closed', () => {
         logger.info('Floating window closed')
@@ -853,6 +950,70 @@ export const getFloatingWindow = () => floatingWindow
 export const getAugmentSidePanelWindow = () => augmentSidePanelWindow
 
 export const getPostGamePosterWindow = () => postGamePosterWindow
+export function getMatchDetailWindowBounds(area: Rectangle): Rectangle {
+    const width = Math.max(1, Math.min(1200, area.width))
+    const height = Math.max(1, Math.min(840, area.height))
+    return { width, height, x: area.x + Math.round((area.width - width) / 2), y: area.y + Math.round((area.height - height) / 2) }
+}
+
+export function getOwnedMatchDetailSnapshot(contents: WebContents): OwnedMatchDetailSnapshot | undefined {
+    return matchDetailOwners.get(contents)
+}
+
+export function closeMatchDetailWindows(): void {
+    for (const window of matchDetailWindows.values()) if (!window.isDestroyed()) window.destroy()
+    matchDetailWindows.clear()
+    matchDetailOwners.clear()
+    matchDetailInflight.clear()
+}
+
+export function openMatchDetailWindow(snapshot: OwnedMatchDetailSnapshot): Promise<void> {
+    const key = `${snapshot.accountKey}:${snapshot.data.locale}:${snapshot.data.match.gameId}`
+    const pending = matchDetailInflight.get(key)
+    if (pending) return pending
+    const existing = matchDetailWindows.get(key)
+    if (existing && !existing.isDestroyed()) {
+        if (existing.isMinimized()) existing.restore()
+        existing.show()
+        existing.focus()
+        return Promise.resolve()
+    }
+    if (matchDetailWindows.size >= MAX_MATCH_DETAIL_WINDOWS) return Promise.reject(new Error('Close a match detail window before opening another'))
+    const task = createMatchDetailWindow(key, snapshot).finally(() => {
+        if (matchDetailInflight.get(key) === task) matchDetailInflight.delete(key)
+    })
+    matchDetailInflight.set(key, task)
+    return task
+}
+
+async function createMatchDetailWindow(key: string, snapshot: OwnedMatchDetailSnapshot): Promise<void> {
+    const [isDev, devServerUrl] = getRendererRuntime()
+    const webPreferences = getWebPreferences(isDev)
+    const display = getDisplayForMainWindow()
+    const bounds = getMatchDetailWindowBounds(display.workArea || display.bounds)
+    const window = new BrowserWindow({
+        ...bounds, minWidth: Math.min(360, bounds.width), minHeight: Math.min(400, bounds.height),
+        show: false, frame: true, resizable: true, fullscreenable: false,
+        backgroundColor: '#0a1015', title: 'ARAMGG', webPreferences,
+    })
+    const contents = window.webContents
+    matchDetailWindows.set(key, window)
+    matchDetailOwners.set(contents, structuredClone(snapshot))
+    attachWindowDiagnostics('match-detail', window)
+    window.once('closed', () => {
+        if (matchDetailWindows.get(key) === window) matchDetailWindows.delete(key)
+        matchDetailOwners.delete(contents)
+    })
+    try {
+        await loadRendererRoute(window, 'match-detail', isDev, devServerUrl, '/match-detail', webPreferences.preload)
+        if (window.isDestroyed() || !matchDetailOwners.has(contents)) throw new Error('Match detail window was closed')
+        window.show()
+        window.focus()
+    } catch (error) {
+        if (!window.isDestroyed()) window.destroy()
+        throw error
+    }
+}
 
 function getRendererRuntime(): [boolean, string] {
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -902,6 +1063,10 @@ export function notifyAllWindows(channel: string, data: unknown): void {
 
 export const allowMainWindowClose = () => {
     mainWindowCloseAllowed = true
+    // macOS otherwise refuses to close the non-closable hidden detail window.
+    if (process.platform === 'darwin' && popupWindow && !popupWindow.isDestroyed()) {
+        popupWindow.setClosable(true)
+    }
 }
 
 /**

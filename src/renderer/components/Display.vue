@@ -16,12 +16,29 @@
                 </div>
             </header>
 
-            <main class="hex-scroll">
+            <MainNavigation v-model="activeSection" />
+            <div class="main-sections">
+            <main
+                v-show="activeSection === 'history'" id="main-panel-history"
+                class="hex-scroll" role="tabpanel" aria-labelledby="main-tab-history" tabindex="0"
+            >
+                <MatchHistoryPanel />
+            </main>
+            <main
+                v-show="activeSection === 'champions'" id="main-panel-champions"
+                class="hex-scroll" role="tabpanel" aria-labelledby="main-tab-champions" tabindex="0"
+            >
+                <ChampionRankingsPanel />
+            </main>
+            <main
+                v-show="activeSection === 'home'" id="main-panel-home"
+                class="hex-scroll" role="tabpanel" aria-labelledby="main-tab-home" tabindex="0"
+            >
                 <div class="status-strip">
                     <div class="status-header">
                         <div>
                             <span class="section-kicker">{{ t('display.runningStatus') }}</span>
-                            <h2>{{ t('display.console') }}</h2>
+                            <h2>{{ t('mainNavigation.home') }}</h2>
                         </div>
                         <Select
                             v-model="selectedLocale"
@@ -76,11 +93,6 @@
                             <span>{{ t('display.dataVersion') }}</span>
                             <strong>{{ dataVersionLabel }}</strong>
                             <small>{{ dataLocaleStatusLabel }}</small>
-                        </div>
-                        <div class="lcu-status-card">
-                            <span>{{ t('display.lcuConnection') }}</span>
-                            <strong>{{ t('display.autoDiscover') }}</strong>
-                            <small>{{ manualLolPath ? t('display.runningClientWithFallback') : t('display.runningClient') }}</small>
                         </div>
                     </div>
 
@@ -138,12 +150,13 @@
                         :aria-expanded="showAdvancedLcuConfig"
                         @click="toggleAdvancedLcuConfig"
                     >
-                        <span>{{ t('display.gameDirectory') }}</span>
+                        <span>{{ t('mainNavigation.directory') }}</span>
                         <ChevronRight
                             class="game-directory-arrow"
                             :class="{ open: showAdvancedLcuConfig }"
                         />
                     </button>
+                    <p class="game-directory-hint">{{ t('mainNavigation.automatic') }}</p>
                     <p class="game-directory-hint">
                         {{ t('display.gameDirectoryAdminHint') }}
                     </p>
@@ -154,6 +167,7 @@
                                 v-model="manualLolPath"
                                 class="manual-path-input"
                                 type="text"
+                                :aria-label="t('mainNavigation.directory')"
                                 spellcheck="false"
                                 placeholder="C:\Riot Games\League of Legends"
                                 @blur="validateManualLolPath"
@@ -210,8 +224,12 @@
                     @post-game-popup-window-changed="setPostGameSharePopupWindowEnabled"
                 />
                 <ChampionMonitor />
-                <MatchHistoryPanel />
 
+                <details class="dev-tools">
+                <summary class="dev-tools-summary">
+                    <ChevronRight class="dev-tools-arrow" aria-hidden="true" />
+                    <span>{{ t('display.devTools') }}</span>
+                </summary>
                 <section class="post-game-panel">
                     <div class="section-header">
                         <p class="section-kicker">{{ t('display.postGamePoster') }}</p>
@@ -262,12 +280,17 @@
 
                     </div>
 
-                    <div v-if="testStatus" class="test-status" :class="testStatus.type">
-                        {{ testStatus.message }}
-                    </div>
                 </section>
-            </main>
+                </details>
 
+                <div
+                    v-if="testStatus"
+                    class="test-status"
+                    :class="testStatus.type"
+                    :role="testStatus.type === 'error' ? 'alert' : 'status'"
+                >
+                    {{ testStatus.message }}
+                </div>
             <footer class="hex-footer">
                 <p>
                     {{ t('display.brand') }} v{{ clientVersionLabel }} -
@@ -298,15 +321,17 @@
                     </button>
                 </p>
             </footer>
+            </main>
+            </div>
 
-            <div v-if="showQuitConfirm" class="app-modal-overlay" @click.self="cancelQuitApp">
+            <div v-if="showQuitConfirm" class="app-modal-overlay" @click.self="cancelQuitApp" @keydown.esc.stop="cancelQuitApp">
                 <section class="app-modal" role="dialog" aria-modal="true" aria-labelledby="quit-title">
                     <div class="app-modal-copy">
                         <h2 id="quit-title">{{ t('display.quitTitle') }}</h2>
                         <p>{{ t('display.quitDescription') }}</p>
                     </div>
                     <div class="app-modal-actions">
-                        <button class="app-modal-action secondary" type="button" @click="cancelQuitApp">
+                        <button ref="quitCancelButton" class="app-modal-action secondary" type="button" @click="cancelQuitApp">
                             {{ t('common.cancel') }}
                         </button>
                         <button class="app-modal-action danger" type="button" @click="quitApp">
@@ -316,7 +341,7 @@
                 </section>
             </div>
 
-            <div v-if="showChangelog" class="app-modal-overlay" @click.self="closeChangelog">
+            <div v-if="showChangelog" class="app-modal-overlay" @click.self="closeChangelog" @keydown.esc.stop="closeChangelog">
                 <section class="app-modal changelog-modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
                     <header class="changelog-modal-header">
                         <div class="changelog-title-group">
@@ -326,7 +351,7 @@
                                 <h2 id="changelog-title">{{ t('display.changelog') }}</h2>
                             </div>
                         </div>
-                        <button class="window-control changelog-close" type="button" :title="t('common.close')" @click="closeChangelog">
+                        <button ref="changelogCloseButton" class="window-control changelog-close" type="button" :title="t('common.close')" @click="closeChangelog">
                             <X class="window-icon" />
                         </button>
                     </header>
@@ -388,11 +413,13 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ItemSetInstaller from './ItemSetInstaller.vue'
 import OverlayPreferences from './OverlayPreferences.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
+import ChampionRankingsPanel from './ChampionRankingsPanel.vue'
 import MatchHistoryPanel from './MatchHistoryPanel.vue'
+import MainNavigation from './MainNavigation.vue'
 import FeedbackWidget from './FeedbackWidget.vue'
 import PostGameShareModal from './PostGameShareModal.vue'
 import {
@@ -428,10 +455,15 @@ import {
 } from 'lucide-vue-next'
 
 const testStatus = ref(null)
+let testStatusTimer = null
+const activeSection = ref('home')
 const { t } = useI18n()
 const versionInfo = ref(null)
 const showQuitConfirm = ref(false)
 const showChangelog = ref(false)
+const quitCancelButton = ref(null)
+const changelogCloseButton = ref(null)
+let lastFocusedElement = null
 const feedbackWidget = ref(null)
 const feedbackOpen = ref(false)
 const showAdvancedLcuConfig = ref(false)
@@ -807,6 +839,19 @@ const closeChangelog = () => {
     showChangelog.value = false
 }
 
+// 弹窗打开时把焦点移入对话框，关闭后还给触发元素，保证键盘用户可以 Esc 退出
+watch([showQuitConfirm, showChangelog], async ([quitOpen, changelogOpen], [wasQuitOpen, wasChangelogOpen]) => {
+    if ((quitOpen && !wasQuitOpen) || (changelogOpen && !wasChangelogOpen)) {
+        lastFocusedElement = document.activeElement
+        await nextTick()
+        const target = quitOpen ? quitCancelButton.value : changelogCloseButton.value
+        target?.focus()
+    } else if (!quitOpen && !changelogOpen && (wasQuitOpen || wasChangelogOpen)) {
+        lastFocusedElement?.focus?.()
+        lastFocusedElement = null
+    }
+})
+
 const formatChangelogVersion = (entry) => {
     const version = String(entry?.version || '').trim()
     if (!version) {
@@ -916,8 +961,8 @@ const testDatabaseLoad = async () => {
             if (result.tests) {
                 const failedTests = result.tests
                     .map((t, i) => '[' + (i + 1) + '] ' + (t.exists ? 'OK' : 'MISS') + ' ' + t.path.substring(0, 60) + '...')
-                    .join('\\n')
-                errorMsg += `\\n\\n${t('display.pathCheckResults')}\\n${failedTests}`
+                    .join('\n')
+                errorMsg += `\n\n${t('display.pathCheckResults')}\n${failedTests}`
             }
             testStatus.value = { type: 'error', message: errorMsg }
         }
@@ -964,7 +1009,17 @@ onMounted(() => {
     })
 })
 
+// 成功/进行中的提示几秒后自动消失，错误提示保留直到下一次操作
+watch(testStatus, (status) => {
+    clearTimeout(testStatusTimer)
+    testStatusTimer = null
+    if (status && status.type !== 'error') {
+        testStatusTimer = setTimeout(() => { testStatus.value = null }, 6000)
+    }
+})
+
 onBeforeUnmount(() => {
+    clearTimeout(testStatusTimer)
     removeQuitConfirmListener?.()
     removeQuitConfirmListener = null
     removeLocaleChangedListener?.()
@@ -982,7 +1037,7 @@ onBeforeUnmount(() => {
     background:
         radial-gradient(circle at 50% 0%, rgba(194, 156, 109, 0.15), transparent 42rem),
         #08151e;
-    color: #d7e4f1;
+    color: var(--lol-ivory);
 }
 
 .hex-window {
@@ -1040,8 +1095,7 @@ onBeforeUnmount(() => {
 }
 
 .brand-lockup,
-.window-controls,
-.status-row {
+.window-controls {
     display: flex;
     align-items: center;
 }
@@ -1054,14 +1108,14 @@ onBeforeUnmount(() => {
 .brand-icon {
     width: 20px;
     height: 20px;
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     filter: drop-shadow(0 0 10px rgba(226, 192, 143, 0.65));
     flex: 0 0 auto;
 }
 
 .brand-lockup h1 {
     margin: 0;
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     font-size: 18px;
     font-weight: 700;
     line-height: 1.1;
@@ -1074,27 +1128,35 @@ onBeforeUnmount(() => {
 }
 
 .window-control {
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border: 1px solid transparent;
     border-radius: 4px;
     background: transparent;
-    color: #bacac6;
+    color: var(--lol-muted);
     cursor: pointer;
     -webkit-app-region: no-drag;
 }
 
+.window-control:focus-visible,
+.game-directory-toggle:focus-visible,
+.footer-link:focus-visible,
+.dev-tools-summary:focus-visible {
+    outline: 2px solid var(--lol-gold-2);
+    outline-offset: 2px;
+}
+
 .window-control:hover {
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     background: rgba(226, 192, 143, 0.08);
     border-color: rgba(226, 192, 143, 0.18);
 }
 
 .window-control.danger:hover {
-    color: #ffb4ab;
+    color: var(--lol-danger);
     background: rgba(255, 180, 171, 0.1);
     border-color: rgba(255, 180, 171, 0.24);
 }
@@ -1102,6 +1164,13 @@ onBeforeUnmount(() => {
 .window-icon {
     width: 16px;
     height: 16px;
+}
+
+.main-sections {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
 }
 
 .hex-scroll {
@@ -1112,6 +1181,7 @@ onBeforeUnmount(() => {
     flex-direction: column;
     gap: 12px;
     min-height: 0;
+    min-width: 0;
     overflow-y: auto;
     padding: 16px;
     background:
@@ -1148,17 +1218,17 @@ onBeforeUnmount(() => {
     margin: 4px 0 0;
     color: var(--lol-ivory);
     font-size: 18px;
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1.2;
 }
 
 .status-grid span {
-    color: #bacac6;
+    color: var(--lol-muted);
     font-size: 11px;
 }
 
 .status-grid strong {
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     font-size: 12px;
     letter-spacing: 0;
 }
@@ -1177,7 +1247,7 @@ onBeforeUnmount(() => {
     box-shadow:
         0 8px 18px rgba(0, 0, 0, 0.14),
         inset 0 1px 0 rgba(255, 255, 255, 0.035);
-    color: #e2c08f !important;
+    color: var(--lol-primary-2) !important;
     cursor: pointer;
     font-size: 12px;
     font-weight: 850;
@@ -1220,7 +1290,7 @@ onBeforeUnmount(() => {
 
 .header-locale-trigger :deep(.select-trigger-chevron) {
     margin-left: auto;
-    color: #859491;
+    color: var(--lol-muted);
     transition-property: transform, color;
     transition-duration: 150ms;
     transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
@@ -1235,7 +1305,7 @@ onBeforeUnmount(() => {
 }
 
 .header-locale-trigger[data-state='open'] :deep(.select-trigger-chevron) {
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     transform: rotate(180deg);
 }
 
@@ -1276,11 +1346,11 @@ onBeforeUnmount(() => {
 
 :global(.locale-select-item[data-highlighted]) {
     background: rgba(194, 156, 109, 0.13) !important;
-    color: #f4ecdc !important;
+    color: var(--lol-ivory) !important;
 }
 
 :global(.locale-select-item[data-state='checked']) {
-    color: #e2c08f !important;
+    color: var(--lol-primary-2) !important;
 }
 
 .locale-option-copy {
@@ -1294,12 +1364,12 @@ onBeforeUnmount(() => {
 .locale-option-copy > span {
     color: inherit;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .locale-option-copy small {
     color: #6f817e;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0;
     text-transform: uppercase;
@@ -1307,7 +1377,7 @@ onBeforeUnmount(() => {
 
 .status-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
 }
 
@@ -1331,28 +1401,11 @@ onBeforeUnmount(() => {
 
 .status-grid small {
     margin-top: 3px;
-    color: #859491;
-    font-size: 10px;
+    color: var(--lol-muted);
+    font-size: 11px;
 }
 
-.version-download {
-    max-width: 100%;
-    margin-top: 5px;
-    padding: 3px 6px;
-    border: 1px solid rgba(226, 192, 143, 0.35);
-    border-radius: 4px;
-    background: rgba(194, 156, 109, 0.12);
-    color: #e2c08f;
-    font-size: 10px;
-    font-weight: 800;
-    line-height: 1.2;
-    cursor: pointer;
-}
 
-.version-download:hover {
-    border-color: rgba(226, 192, 143, 0.58);
-    background: rgba(194, 156, 109, 0.2);
-}
 
 .update-panel {
     margin-top: 8px;
@@ -1395,17 +1448,17 @@ onBeforeUnmount(() => {
 
 .update-copy span {
     flex: 0 0 auto;
-    color: #bacac6;
+    color: var(--lol-muted);
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1.1;
 }
 
 .update-copy strong {
     min-width: 0;
-    color: #e2c08f;
-    font-size: 10px;
-    font-weight: 800;
+    color: var(--lol-primary-2);
+    font-size: 11px;
+    font-weight: 700;
     line-height: 1.15;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1428,7 +1481,7 @@ onBeforeUnmount(() => {
     border: 1px solid rgba(244, 236, 220, 0.1);
     border-radius: 4px;
     background: rgba(17, 29, 38, 0.72);
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     cursor: pointer;
     transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, color 0.16s ease, opacity 0.16s ease;
 }
@@ -1436,7 +1489,7 @@ onBeforeUnmount(() => {
 .update-action:hover:not(:disabled) {
     transform: translateY(-1px);
     border-color: rgba(226, 192, 143, 0.4);
-    color: #e2c08f;
+    color: var(--lol-primary-2);
 }
 
 .update-action:active:not(:disabled) {
@@ -1451,7 +1504,7 @@ onBeforeUnmount(() => {
 .update-action.accent {
     border-color: rgba(226, 192, 143, 0.34);
     background: rgba(194, 156, 109, 0.14);
-    color: #e2c08f;
+    color: var(--lol-primary-2);
 }
 
 .update-action-icon {
@@ -1484,14 +1537,14 @@ onBeforeUnmount(() => {
     width: 0;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, rgba(194, 156, 109, 0.72), #e2c08f);
+    background: linear-gradient(90deg, rgba(194, 156, 109, 0.72), var(--lol-primary-2));
     transition: width 0.18s ease;
 }
 
 .update-progress-text {
-    color: #e2c08f;
-    font-size: 9px;
-    font-weight: 900;
+    color: var(--lol-primary-2);
+    font-size: 11px;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
@@ -1507,9 +1560,6 @@ onBeforeUnmount(() => {
     }
 }
 
-.lcu-status-card {
-    position: relative;
-}
 
 .game-directory-toggle {
     width: 100%;
@@ -1523,17 +1573,17 @@ onBeforeUnmount(() => {
     border: 1px solid rgba(226, 192, 143, 0.22);
     border-radius: 4px;
     background: rgba(4, 15, 24, 0.46);
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     cursor: pointer;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 700;
     text-align: left;
 }
 
 .game-directory-hint {
     margin: 6px 2px 0;
-    color: #859491;
-    font-size: 10px;
+    color: var(--lol-muted);
+    font-size: 11px;
     font-weight: 700;
     line-height: 1.45;
     text-wrap: pretty;
@@ -1548,7 +1598,7 @@ onBeforeUnmount(() => {
     width: 16px;
     height: 16px;
     flex: 0 0 auto;
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     transition: transform 0.18s ease;
 }
 
@@ -1602,22 +1652,22 @@ onBeforeUnmount(() => {
     border: 1px solid rgba(244, 236, 220, 0.1);
     border-radius: 4px;
     background: rgba(17, 29, 38, 0.72);
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     cursor: pointer;
 }
 
 .manual-path-button:hover:not(:disabled) {
     border-color: rgba(226, 192, 143, 0.38);
-    color: #e2c08f;
+    color: var(--lol-primary-2);
 }
 
 .manual-path-button.accent {
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     background: rgba(194, 156, 109, 0.1);
 }
 
 .manual-path-button.danger {
-    color: #ffb4ab;
+    color: var(--lol-danger);
     background: rgba(68, 14, 20, 0.26);
 }
 
@@ -1644,19 +1694,19 @@ onBeforeUnmount(() => {
 
 .manual-path-status.info {
     background: rgba(226, 192, 143, 0.08);
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     border: 1px solid rgba(226, 192, 143, 0.18);
 }
 
 .manual-path-status.success {
     background: rgba(84, 216, 132, 0.08);
-    color: #54d884;
+    color: var(--lol-success);
     border: 1px solid rgba(84, 216, 132, 0.2);
 }
 
 .manual-path-status.error {
     background: rgba(255, 180, 171, 0.08);
-    color: #ffb4ab;
+    color: var(--lol-danger);
     border: 1px solid rgba(255, 180, 171, 0.22);
 }
 
@@ -1667,9 +1717,9 @@ onBeforeUnmount(() => {
     border: 1px solid rgba(255, 180, 171, 0.26);
     border-radius: 4px;
     background: rgba(255, 180, 171, 0.08);
-    color: #ffcec8;
-    font-size: 10px;
-    font-weight: 900;
+    color: var(--lol-danger);
+    font-size: 11px;
+    font-weight: 700;
     cursor: pointer;
 }
 
@@ -1740,7 +1790,7 @@ onBeforeUnmount(() => {
 }
 
 .post-game-share-button.mock {
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     background:
         linear-gradient(135deg, rgba(25, 38, 48, 0.95), rgba(37, 49, 57, 0.9));
     box-shadow:
@@ -1776,14 +1826,14 @@ onBeforeUnmount(() => {
 
 .post-game-share-button .text {
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 700;
 }
 
 .post-game-share-button .hint {
     margin-top: 2px;
     color: rgba(6, 17, 22, 0.72);
-    font-size: 10px;
-    font-weight: 800;
+    font-size: 11px;
+    font-weight: 700;
 }
 
 .post-game-share-button.mock .hint {
@@ -1813,7 +1863,7 @@ onBeforeUnmount(() => {
         0 0 22px rgba(155, 232, 220, 0.16);
     cursor: pointer;
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 700;
     transition-property: scale, filter, box-shadow, opacity;
     transition-duration: 150ms;
     transition-timing-function: ease-out;
@@ -1846,11 +1896,51 @@ onBeforeUnmount(() => {
     padding: 14px;
 }
 
+.dev-tools {
+    flex: 0 0 auto;
+    border: 1px dashed var(--lol-border-soft);
+    border-radius: 4px;
+}
+
+.dev-tools-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    color: var(--lol-muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.dev-tools-summary::-webkit-details-marker {
+    display: none;
+}
+
+.dev-tools-summary:hover {
+    color: var(--lol-primary-2);
+}
+
+.dev-tools-arrow {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.18s ease;
+}
+
+.dev-tools[open] > .dev-tools-summary .dev-tools-arrow {
+    transform: rotate(90deg);
+}
+
+.dev-tools > section {
+    margin: 0 8px 8px;
+}
+
 .section-kicker {
     margin: 0 0 6px;
-    color: #e2c384;
+    color: var(--lol-gold-2);
     font-size: 11px;
-    font-weight: 900;
+    font-weight: 700;
     letter-spacing: 0;
 }
 
@@ -1860,9 +1950,9 @@ onBeforeUnmount(() => {
 
 .section-header h3 {
     margin: 0;
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     font-size: 16px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .test-controls {
@@ -1884,7 +1974,7 @@ onBeforeUnmount(() => {
     border: 1px solid rgba(60, 74, 71, 0.46);
     border-radius: 4px;
     background: rgba(17, 29, 38, 0.78);
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     text-align: left;
     cursor: pointer;
     transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
@@ -1915,14 +2005,11 @@ onBeforeUnmount(() => {
     border-color: rgba(226, 195, 132, 0.44);
 }
 
-.test-btn.danger:hover {
-    border-color: rgba(255, 180, 171, 0.44);
-}
 
 .test-btn .icon {
     width: 18px;
     height: 18px;
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     flex: 0 0 auto;
 }
 
@@ -1930,9 +2017,6 @@ onBeforeUnmount(() => {
     color: var(--lol-gold-2);
 }
 
-.test-btn.danger .icon {
-    color: #ffb4ab;
-}
 
 .button-copy {
     min-width: 0;
@@ -1948,13 +2032,13 @@ onBeforeUnmount(() => {
 
 .test-btn .text {
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .test-btn .hint {
     margin-top: 2px;
-    color: #859491;
-    font-size: 10px;
+    color: var(--lol-muted);
+    font-size: 11px;
 }
 
 .test-status {
@@ -1967,19 +2051,19 @@ onBeforeUnmount(() => {
 
 .test-status.info {
     background: rgba(226, 192, 143, 0.1);
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     border: 1px solid rgba(226, 192, 143, 0.22);
 }
 
 .test-status.success {
     background: rgba(84, 216, 132, 0.1);
-    color: #54d884;
+    color: var(--lol-success);
     border: 1px solid rgba(84, 216, 132, 0.24);
 }
 
 .test-status.error {
     background: rgba(255, 180, 171, 0.1);
-    color: #ffb4ab;
+    color: var(--lol-danger);
     border: 1px solid rgba(255, 180, 171, 0.24);
 }
 
@@ -2000,18 +2084,18 @@ onBeforeUnmount(() => {
     width: 34%;
     height: 2px;
     transform: translateX(-50%);
-    background: linear-gradient(90deg, transparent, #e2c08f, transparent);
+    background: linear-gradient(90deg, transparent, var(--lol-primary-2), transparent);
     opacity: 0.55;
 }
 
 .hex-footer p {
     margin: 0;
-    color: #bacac6;
-    font-size: 10px;
-    font-weight: 900;
+    color: var(--lol-muted);
+    font-size: 11px;
+    font-weight: 700;
     line-height: 1.25;
     letter-spacing: 0;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
 .hex-footer .footer-feedback {
@@ -2020,7 +2104,7 @@ onBeforeUnmount(() => {
 
 .footer-separator {
     margin: 0 5px;
-    color: #859491;
+    color: var(--lol-muted);
 }
 
 .app-modal-overlay {
@@ -2057,7 +2141,7 @@ onBeforeUnmount(() => {
     left: 0;
     right: 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, #e2c08f, transparent);
+    background: linear-gradient(90deg, transparent, var(--lol-primary-2), transparent);
     opacity: 0.72;
 }
 
@@ -2073,13 +2157,13 @@ onBeforeUnmount(() => {
     margin: 0;
     color: var(--lol-ivory);
     font-size: 17px;
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1.2;
 }
 
 .app-modal-copy p {
     margin: 8px 0 0;
-    color: #bacac6;
+    color: var(--lol-muted);
     font-size: 12px;
     line-height: 1.5;
 }
@@ -2099,7 +2183,7 @@ onBeforeUnmount(() => {
     gap: 6px;
     border-radius: 4px;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 700;
     cursor: pointer;
     transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
@@ -2118,7 +2202,7 @@ onBeforeUnmount(() => {
 .app-modal-action.danger {
     border: 1px solid rgba(226, 192, 143, 0.35);
     background: rgba(194, 156, 109, 0.12);
-    color: #e2c08f;
+    color: var(--lol-primary-2);
 }
 
 .app-modal-action.danger:hover {
@@ -2154,14 +2238,14 @@ onBeforeUnmount(() => {
     width: 20px;
     height: 20px;
     flex: 0 0 auto;
-    color: #e2c08f;
+    color: var(--lol-primary-2);
 }
 
 .changelog-modal-header h2 {
     margin: 0;
     color: var(--lol-ivory);
     font-size: 17px;
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1.2;
 }
 
@@ -2206,9 +2290,9 @@ onBeforeUnmount(() => {
 }
 
 .changelog-entry-title strong {
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1.2;
 }
 
@@ -2217,30 +2301,30 @@ onBeforeUnmount(() => {
     border: 1px solid rgba(226, 192, 143, 0.28);
     border-radius: 4px;
     background: rgba(194, 156, 109, 0.12);
-    color: #e2c08f;
-    font-size: 10px;
-    font-weight: 900;
+    color: var(--lol-primary-2);
+    font-size: 11px;
+    font-weight: 700;
     line-height: 1.2;
 }
 
 .changelog-date {
     flex: 0 0 auto;
-    color: #859491;
-    font-size: 10px;
-    font-weight: 800;
+    color: var(--lol-muted);
+    font-size: 11px;
+    font-weight: 700;
 }
 
 .changelog-entry h3 {
     margin: 8px 0 0;
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1.3;
 }
 
 .changelog-entry p {
     margin: 6px 0 0;
-    color: #bacac6;
+    color: var(--lol-muted);
     font-size: 12px;
     line-height: 1.45;
 }
@@ -2257,7 +2341,7 @@ onBeforeUnmount(() => {
 .changelog-changes li {
     position: relative;
     padding-left: 12px;
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     font-size: 12px;
     line-height: 1.45;
 }
@@ -2270,7 +2354,7 @@ onBeforeUnmount(() => {
     width: 4px;
     height: 4px;
     border-radius: 4px;
-    background: #e2c08f;
+    background: var(--lol-primary-2);
 }
 
 .changelog-empty {
@@ -2279,7 +2363,7 @@ onBeforeUnmount(() => {
     border: 1px solid rgba(244, 236, 220, 0.07);
     border-radius: 4px;
     background: rgba(4, 15, 24, 0.42);
-    color: #859491;
+    color: var(--lol-muted);
     font-size: 12px;
     text-align: center;
 }
@@ -2298,14 +2382,14 @@ onBeforeUnmount(() => {
 }
 
 .footer-link {
-    color: #e2c08f;
+    color: var(--lol-primary-2);
     text-decoration: underline;
     text-underline-offset: 2px;
     cursor: pointer;
 }
 
 .footer-link:hover {
-    color: #f4ecdc;
+    color: var(--lol-ivory);
 }
 
 .footer-action {
@@ -2329,6 +2413,16 @@ onBeforeUnmount(() => {
     background: linear-gradient(180deg, rgba(226, 195, 132, 0.72), rgba(226, 192, 143, 0.48));
 }
 
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
 @media (max-width: 460px) {
     .display-page {
         padding: 0;
@@ -2340,10 +2434,6 @@ onBeforeUnmount(() => {
         border-radius: 0;
         border-left: none;
         border-right: none;
-    }
-
-    .test-controls {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 </style>

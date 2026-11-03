@@ -1,6 +1,6 @@
 {
   "name": "aramgg_banma_city",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Electron companion for League of Legends ARAM recommendations and augment OCR.",
   "author": "ARAMGG",
   "private": true,
@@ -24,7 +24,11 @@
     "release:patch": "npm version patch -m \"chore: release v%s\"",
     "release:minor": "npm version minor -m \"chore: release v%s\"",
     "release:major": "npm version major -m \"chore: release v%s\"",
-    "release:push": "git push origin master --follow-tags"
+    "release:push": "git push origin master --follow-tags",
+    "pack:mac": "node scripts/pack-electron.mjs --mac",
+    "test:packaged-mac": "node scripts/test-packaged-windows.mjs build/mac-arm64/aramgg_client.app build/mac-smoke tests/fixtures/augment-ocr/full-three-cards.png",
+    "prebuild": "node scripts/build-mac-capture.mjs",
+    "predev": "node scripts/build-mac-capture.mjs"
   },
   "build": {
     "productName": "aramgg_banma_city",
@@ -60,7 +64,6 @@
       "!**/docs/**",
       "!**/example/**",
       "!**/examples/**",
-      "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
       "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
       "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
     ],
@@ -78,6 +81,9 @@
       }
     ],
     "win": {
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**"
+      ],
       "verifyUpdateCodeSignature": false,
       "target": [
         {
@@ -106,7 +112,8 @@
     "mac": {
       "category": "public.app-category.games",
       "icon": "public/icon.png",
-      "identity": null,
+      "identity": "-",
+      "minimumSystemVersion": "14.0",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "target": [
@@ -126,6 +133,12 @@
       "artifactName": "aramgg_banma_city-${version}-mac-${arch}.${ext}",
       "files": [
         "node_modules/onnxruntime-node/bin/napi-v6/darwin/**/*"
+      ],
+      "extraResources": [
+        {
+          "from": ".runtime/mac-capture/aramgg_capture.node",
+          "to": "mac-capture/aramgg_capture.node"
+        }
       ],
       "extendInfo": {
         "NSScreenCaptureUsageDescription": "ARAMGG 需要截取游戏画面来识别海克斯卡片。"

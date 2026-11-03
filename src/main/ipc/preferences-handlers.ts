@@ -15,8 +15,10 @@ import {
 import { changeDataLocale } from '../modules/data-locale-controller.ts'
 import store from '../modules/app-store.ts'
 import logger from '../modules/logger.ts'
-import { applyPopupWindowPreferences, notifyAllWindows } from '../modules/window-manager.ts'
+import { applyPopupWindowPreferences, closeMatchDetailWindows, notifyAllWindows, setPopupPresentation } from '../modules/window-manager.ts'
+import { showCurrentChampionGuide } from '../modules/champion-guide.ts'
 import { trustedIpcMain as ipcMain } from '../security/trusted-ipc.ts'
+import { matchDetailSnapshots } from '../services/match-history/match-detail-snapshots.ts'
 
 const APP_LOCALE_KEY = 'app.locale'
 const RENDERER_STORE_KEYS = new Set<AppStoreKey>([
@@ -67,15 +69,22 @@ export function registerPreferencesIpcHandlers(): void {
     return store.get(key)
   })
 
-  ipcMain.handle('store-set', (_event, key: unknown, value: unknown) => {
+  ipcMain.handle('store-set', async (_event, key: unknown, value: unknown) => {
     assertRendererStoreKey(key)
     if (key === AUGMENT_HIGHLIGHT_MODE_STORE_KEY && !isAugmentHighlightMode(value)) {
       throw new Error('Unsupported augment highlight mode')
     }
 
+    const previous = store.get(key)
     store.set(key, value)
     if (key.startsWith('championInsight.')) {
-      applyPopupWindowPreferences()
+      // 偏好变化立即生效：先撤销主动打开状态，再在放宽显示条件时恢复当前英雄攻略。
+      setPopupPresentation(false)
+      if (previous !== value && ((key === 'championInsight.showDetails' && value === true) ||
+          (key === 'championInsight.hideOnGameStart' && value === false) ||
+          (key === 'championInsight.alwaysOnTop' && value === true))) {
+        await showCurrentChampionGuide('preference')
+      }
     }
     if (key === AUGMENT_HIGHLIGHT_MODE_STORE_KEY) {
       notifyAllWindows('augment-highlight-mode-changed', { mode: value })
@@ -108,7 +117,11 @@ export function registerPreferencesIpcHandlers(): void {
       prepare: prepareDataLocale,
       persist: (preparedLocale) => store.set(APP_LOCALE_KEY, preparedLocale),
       activate: setDataLocale,
-      notify: (payload) => notifyAllWindows('locale-changed', payload),
+      notify: (payload) => {
+        matchDetailSnapshots.clear()
+        closeMatchDetailWindows()
+        notifyAllWindows('locale-changed', payload)
+      },
     })
 
     logger.info('[locale] data locale changed', {

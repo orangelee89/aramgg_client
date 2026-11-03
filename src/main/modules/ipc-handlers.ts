@@ -1,4 +1,6 @@
 import { BrowserWindow, clipboard, dialog, nativeImage, type OpenDialogOptions } from 'electron'
+import { showCurrentChampionGuide } from './champion-guide.ts'
+import { getTabGuideStatus, setTabGuideEnabled } from './tab-champion-guide.ts'
 import { writeFile } from 'fs/promises'
 import path from 'path'
 import { captureScreenshot } from '../screenshot.ts'
@@ -45,9 +47,11 @@ import {
     loadChampionRoster,
 } from '../data-loader.ts'
 import { getAramBenchRecommendation } from '../services/aram/bench-recommendation.ts'
+import { loadChampionStatsForRecommendation } from '../services/aram/bench-recommendation-data.ts'
 import { registerPreferencesIpcHandlers } from '../ipc/preferences-handlers.ts'
 import { registerSystemIpcHandlers } from '../ipc/system-handlers.ts'
 import { registerFeedbackIpcHandlers } from '../ipc/feedback-handlers.ts'
+import { registerChampionRankingsIpcHandlers } from '../ipc/champion-rankings-handlers.ts'
 import { trustedIpcMain as ipcMain } from '../security/trusted-ipc.ts'
 import { shouldRaiseOverlayWindow } from './overlay-window-state.ts'
 
@@ -339,10 +343,9 @@ async function buildRandomBenchRecommendation(currentChampionId: number | null =
         ]
         : sampleItems(champions, Math.min(TEST_BENCH_CHAMPION_COUNT, champions.length))
     const [currentChampion, ...benchChampions] = selectedChampions
-    const championStatsById = selectedChampions.reduce((result, champion) => {
-        result[champion.championId] = champion
-        return result
-    }, {})
+    const championStatsById = await loadChampionStatsForRecommendation(
+        selectedChampions.map((champion) => Number(champion.championId))
+    )
 
     return getAramBenchRecommendation(
         {
@@ -360,8 +363,15 @@ async function buildRandomBenchRecommendation(currentChampionId: number | null =
 
 export function registerIpcHandlers(isDev: boolean): void {
     registerPreferencesIpcHandlers()
+    ipcMain.handle('show-current-champion', () => showCurrentChampionGuide())
+    ipcMain.handle('get-tab-guide-status', () => getTabGuideStatus())
+    ipcMain.handle('set-tab-guide-enabled', (_event, enabled: unknown) => {
+        if (typeof enabled !== 'boolean') throw new Error('Expected a boolean')
+        return setTabGuideEnabled(enabled)
+    })
     registerSystemIpcHandlers()
     registerFeedbackIpcHandlers()
+    registerChampionRankingsIpcHandlers()
 
     ipcMain.on('renderer-ready', (event) => markRendererReady(event.sender))
 
@@ -1016,6 +1026,7 @@ export function registerIpcHandlers(isDev: boolean): void {
                     dataVersion: detail.dataVersion,
                     data: {
                         stats: detail.stats,
+                        patchEvidence: detail.patchEvidence,
                         augments: detail.augmentBase,
                         augmentStats: detail.augments,
                         augmentTrios: detail.augmentTrios,

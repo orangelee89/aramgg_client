@@ -1,3 +1,5 @@
+> macOS / Apple silicon preview support contributed by **ironieser**. See the [macOS guide](./docs/MACOS.md) for building, permissions and validation limits. No production Mac installer is published yet.
+
 <p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="ARAMGG Assistant with read-only LCU guidance, local Augment OCR, and in-game recommendation overlays" />
 </p>
@@ -124,7 +126,7 @@ Client data APIs, API key applications, and integration notes are available on t
 <details>
 <summary><strong>Maintainers: release and quality checks</strong></summary>
 
-GitHub Actions runs lint, type-check, unit tests, and packaging on a Windows runner. Official releases use `npm run release:patch|minor|major` to create the version commit and annotated tag, followed by `npm run release:push`.
+GitHub Actions runs lint, type-check, unit tests, packaging, and packaged window smoke checks on Windows and Apple silicon macOS runners. The Mac check also runs fixture OCR. Use `npm run release:patch|minor|major` to create the version commit and annotated tag, followed by `npm run release:push`. Tags create regular GitHub releases without replacing the stable Latest release. Production client version announcements are managed separately through remote configuration.
 
 Source builds and ordinary local packages do not upload match history to production. Only the official GitHub release workflow injects the official channel marker and production upload origin.
 
@@ -134,7 +136,7 @@ After dependency or lockfile changes, validate with npm 10 before publishing:
 npx -p npm@10 npm ci --ignore-scripts
 ```
 
-After publishing the installer, update `client.latestVersion`, `client.downloadUrl`, and the release notes in the remote `/api/client/v1/config` response. Keep `client.autoUpdateEnabled` off until the complete update path has been verified.
+When promoting a new version to production clients, update `client.latestVersion`, `client.downloadUrl`, and the release notes in the remote `/api/client/v1/config` response. Leave this configuration unchanged for GitHub-only releases. Keep `client.autoUpdateEnabled` off until the complete update path has been verified.
 
 </details>
 
