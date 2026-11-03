@@ -231,4 +231,42 @@ describe('tencent overlay', () => {
     expect(merged.augments.map((augment: any) => augment.id)).toEqual([1001, 2054])
     expect(merged.augments[1].stats).toMatchObject({ winRate: 0.61, games: 900, rank: 2, total: 2 })
   })
+
+  it('keeps newer aramgg stats when the Tencent mirror is stale', () => {
+    const stale = snapshot({ statDate: '2026-10-20' })
+    const augments = overlayAugmentsPayload(
+      { data: [{ id: 1001, name: '泰坦的坚决', stats: { winRate: 0.4, pickRate: 0.1, date: '2026-10-21' } }] },
+      stale
+    )
+    expect(augments.data[0]).toMatchObject({ stats: { winRate: 0.4, date: '2026-10-21' } })
+    expect(augments.data[0].stats.source).toBeUndefined()
+
+    const champions = overlayChampionsPayload({ data: [{ id: 1, stats: { winRate: 0.48, date: '2026-10-21' } }] }, stale)
+    expect(champions.data[0].stats).toEqual({ winRate: 0.48, date: '2026-10-21' })
+
+    const detail = {
+      championId: 1,
+      champion: { id: 1, stats: { winRate: 0.48, date: '2026-10-21' } },
+      augments: [
+        { id: 1004, stats: { winRate: 0.5, rank: 1, date: '2026-10-21' } },
+        { id: 1001, stats: { winRate: 0.46, rank: 2, date: '2026-10-21', winRateSource: 'aramgg-client-upload' } },
+      ],
+    }
+    const merged = overlayChampionDetail(detail, stale, {
+      fetchedAt: '2026-10-20T08:00:00.000Z',
+      championId: '1',
+      augments: [{ augmentId: '1001', rank: 1, pickRate: 0.12, grade: 'S' }],
+    })
+    expect(merged.champion.stats).toEqual({ winRate: 0.48, date: '2026-10-21' })
+    expect(merged.augments.map((augment: any) => augment.id)).toEqual([1004, 1001])
+    expect(merged.augments[1]).toMatchObject({ stats: { rank: 2, winRate: 0.46 } })
+  })
+
+  it('still prefers Tencent stats on the same or a later date', () => {
+    const merged = overlayAugmentsPayload(
+      { data: [{ id: 1001, stats: { winRate: 0.4, date: '2026-10-22' } }] },
+      snapshot()
+    )
+    expect(merged.data[0].stats).toMatchObject({ winRate: 0.48, source: 'tencent' })
+  })
 })
