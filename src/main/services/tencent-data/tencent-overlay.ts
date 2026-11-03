@@ -63,6 +63,17 @@ function tencentStatFields(snapshot: TencentGlobalSnapshot) {
   }
 }
 
+function tencentStatDate(snapshot: TencentGlobalSnapshot): string {
+  return snapshot.statDate || snapshot.fetchedAt.slice(0, 10)
+}
+
+// 两边数据都带统计日期（YYYY-MM-DD）。aramgg 的统计日期严格晚于掌盟时（比如镜像同步停了几天），
+// 保留 aramgg 的统计，不用更旧的掌盟数据覆盖；同一天或无法判断时仍以掌盟为准。
+export function isUpstreamStatNewer(stats: any, tencentDate: string): boolean {
+  const upstreamDate = typeof stats?.date === 'string' ? stats.date.slice(0, 10) : ''
+  return Boolean(upstreamDate && tencentDate && upstreamDate > tencentDate)
+}
+
 function buildAugmentFromMeta(meta: TencentAugmentMeta): any {
   const rarity = meta.rarity ? RARITY_FIELDS[meta.rarity] : null
   return {
@@ -114,7 +125,7 @@ export function overlayAugmentsPayload(payload: any, snapshot: TencentGlobalSnap
 
   const applyStats = (augment: any, id: string): any => {
     const stat = statById.get(id)
-    if (!stat) {
+    if (!stat || isUpstreamStatNewer(augment.stats, tencentStatDate(snapshot))) {
       return augment
     }
 
@@ -190,7 +201,9 @@ export function overlayChampionsPayload(payload: any, snapshot: TencentGlobalSna
   const list = getList(payload).map((champion: any) => {
     const named = withChampionName(champion, snapshot)
     const stat = statById.get(String(champion?.id ?? champion?.championId ?? ''))
-    return stat ? { ...named, stats: championStats(champion, stat, total, snapshot) } : named
+    return stat && !isUpstreamStatNewer(champion?.stats, tencentStatDate(snapshot))
+      ? { ...named, stats: championStats(champion, stat, total, snapshot) }
+      : named
   })
 
   return cloneWithList(payload, list)
@@ -225,7 +238,7 @@ export function overlayChampionDetail(
   if (snapshot && detail.champion) {
     const named = withChampionName(detail.champion, snapshot)
     const stat = snapshot.championStats.find((entry) => entry.championId === championId)
-    result.champion = stat
+    result.champion = stat && !isUpstreamStatNewer(detail.champion.stats, tencentStatDate(snapshot))
       ? { ...named, stats: championStats(detail.champion, stat, snapshot.championStats.length, snapshot) }
       : named
   }
@@ -236,7 +249,10 @@ export function overlayChampionDetail(
   }
 
   const ranked = championSnapshot?.augments || []
-  if (ranked.length > 0) {
+  const championTencentDate = snapshot ? tencentStatDate(snapshot) : championSnapshot?.fetchedAt.slice(0, 10) || ''
+  const upstreamNewer = Array.isArray(detail.augments)
+    && detail.augments.some((augment: any) => isUpstreamStatNewer(augment?.stats, championTencentDate))
+  if (ranked.length > 0 && !upstreamNewer) {
     const existingById = new Map<string, any>(
       (Array.isArray(result.augments) ? result.augments : [])
         .filter((augment: any) => augment?.id != null)
