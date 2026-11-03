@@ -32,6 +32,7 @@ import {
     applyFloatingWindowLayout,
     ensureAugmentOverlayWindows,
     raiseOverlayWindow,
+    refreshVisibleMacAugmentOverlayOrder,
 } from './modules/window-manager.ts'
 import { shouldRaiseOverlayWindow } from './modules/overlay-window-state.ts'
 import store from './modules/app-store.ts'
@@ -220,7 +221,8 @@ class AutoScreenshotService {
         this.lastAnalysisTime = null
         this.lastAnalysisDuration = 0
         this.captureTimeoutMs = 2500
-        this.preferScreenCapture = true
+        // Mac 抓游戏窗口（可在副屏）；Windows 整屏原生抓帧。
+        this.preferScreenCapture = process.platform !== 'darwin'
         this.lastCaptureSource = null
         this.lastFrameSize = null
         this.lastSummaryLogAt = 0
@@ -531,6 +533,7 @@ class AutoScreenshotService {
         this.isCapturing = true
 
         try {
+            if (this.lastDetectedAugmentIds.length > 0) refreshVisibleMacAugmentOverlayOrder()
             const stage = this.enableAnalysis && this.controlOwner === 'gameflow'
                 ? resolveCaptureStage({
                     mode: this.captureMode,
@@ -799,6 +802,10 @@ class AutoScreenshotService {
 
             const { cardCount, confidence, isAugmentPhase, augments } = analysisResult.analysis
             const hasVisibleAugments = this.lastDetectedAugmentIds.length > 0
+            if (hasVisibleAugments && (cardCount > 0 ||
+                analysisResult.analysis.augmentGate?.cardFramesVisible === true)) {
+                refreshVisibleMacAugmentOverlayOrder()
+            }
             const confirmedSelectionUi = shouldActivateSelectionCapture({
                 confirmedSelectionUi: isConfirmedAugmentSelectionUi(analysisResult.analysis),
                 recognizedAugmentCount: cardCount,
@@ -950,6 +957,7 @@ class AutoScreenshotService {
                     const shouldClearVisibleAugments = this._shouldClearVisibleAugmentsAfterMiss({
                         cardCount,
                         augments,
+                        cardFramesVisible: analysisResult.analysis.augmentGate?.cardFramesVisible === true,
                     })
 
                     if (hadVisibleAugmentOverlay && shouldClearVisibleAugments) {
@@ -962,6 +970,8 @@ class AutoScreenshotService {
                             previousIds: this.lastDetectedAugmentIds,
                             ageMs,
                             cardCount,
+                            ocrSkippedReason: analysisResult.analysis.augmentGate?.ocrSkippedReason ?? null,
+                            cardFramesVisible: analysisResult.analysis.augmentGate?.cardFramesVisible === true,
                         })
                         this.lastDetectedAugmentIds = []
                         this.lastDetectedAugments = []
@@ -1011,9 +1021,15 @@ class AutoScreenshotService {
         logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, gateScreenshots=${stats.gateScreenshotCount}, fullOcrScreenshots=${stats.fullOcrScreenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, fullOcrBackoffSkips=${stats.fullOcrBackoffSkips}, mode=${stats.captureMode}, interval=${stats.activeInterval}ms, capture=${stats.captureSource || 'none'}:${frameSize}, thumbnail=${stats.thumbnailSize.width}x${stats.thumbnailSize.height}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
     }
 
-    _shouldClearVisibleAugmentsAfterMiss({ cardCount, augments = [] }) {
+    _shouldClearVisibleAugmentsAfterMiss({ cardCount, augments = [], cardFramesVisible = false }) {
         if (this.lastDetectedAugmentIds.length === 0) {
             this.visibleAugmentMissCount = 0
+            return false
+        }
+
+        if (cardFramesVisible) {
+            this.visibleAugmentMissCount = 0
+            logger.debug('Retaining augment overlay while card frames remain visible', { cardCount })
             return false
         }
 
@@ -1339,7 +1355,7 @@ class AutoScreenshotService {
             let sentToOverlay = false
 
             if (floatingWindow && !floatingWindow.isDestroyed() && shouldShowAugmentTopOverlay()) {
-                if (shouldRaiseOverlayWindow(floatingWindow)) {
+                if (process.platform === 'darwin' || shouldRaiseOverlayWindow(floatingWindow)) {
                     applyFloatingWindowLayout()
                     logger.info('✨ 显示海克斯浮动窗口')
                     raiseOverlayWindow(floatingWindow, 'floating')
@@ -1352,7 +1368,7 @@ class AutoScreenshotService {
             }
 
             if (sidePanelWindow && !sidePanelWindow.isDestroyed() && shouldShowAugmentSidePanel()) {
-                if (shouldRaiseOverlayWindow(sidePanelWindow)) {
+                if (process.platform === 'darwin' || shouldRaiseOverlayWindow(sidePanelWindow)) {
                     applyAugmentSidePanelWindowLayout()
                     logger.info('✨ 显示海克斯右侧推荐列表')
                     raiseOverlayWindow(sidePanelWindow, 'augment-side-panel')
@@ -1503,7 +1519,9 @@ class AutoScreenshotService {
                 return url.includes('floating-overlay')
             })
             const wasFloatingWindowVisible = !!floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()
-            if (wasFloatingWindowVisible) {
+            // Mac 被游戏遮挡的面板 isVisible() 可能为 false，仍需显式隐藏。
+            if (floatingWindow && !floatingWindow.isDestroyed() &&
+                (wasFloatingWindowVisible || process.platform === 'darwin')) {
                 floatingWindow.hide()
                 logger.debug('Hidden augment floating window after selection disappeared')
             }
@@ -1513,7 +1531,8 @@ class AutoScreenshotService {
                 return url.includes('augment-side-panel')
             })
             const wasSidePanelWindowVisible = !!sidePanelWindow && !sidePanelWindow.isDestroyed() && sidePanelWindow.isVisible()
-            if (wasSidePanelWindowVisible) {
+            if (sidePanelWindow && !sidePanelWindow.isDestroyed() &&
+                (wasSidePanelWindowVisible || process.platform === 'darwin')) {
                 sidePanelWindow.hide()
                 logger.debug('Hidden augment side panel window after selection disappeared')
             }

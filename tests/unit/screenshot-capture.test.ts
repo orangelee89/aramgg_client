@@ -4,6 +4,10 @@ const mocks = vi.hoisted(() => ({
   getSources: vi.fn(),
   nativeAvailable: vi.fn(() => false),
   captureNativeScreenFrame: vi.fn(),
+  captureMacGameWindow: vi.fn(),
+  getMacGameWindowInfo: vi.fn(),
+  getMediaAccessStatus: vi.fn(() => 'granted'),
+  requestMacScreenCaptureAccess: vi.fn(() => false),
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -12,7 +16,14 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
+vi.mock('../../src/main/modules/mac-game-capture.ts', () => ({
+  captureMacGameWindow: mocks.captureMacGameWindow,
+  getMacGameWindowInfo: mocks.getMacGameWindowInfo,
+  requestMacScreenCaptureAccess: mocks.requestMacScreenCaptureAccess,
+}))
+
 vi.mock('electron', () => ({
+  systemPreferences: { getMediaAccessStatus: mocks.getMediaAccessStatus },
   desktopCapturer: {
     getSources: mocks.getSources,
   },
@@ -47,6 +58,10 @@ const createThumbnail = (width = 1280, height = 720) => ({
 describe('captureScreenshot', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.resetModules()
+    mocks.getMediaAccessStatus.mockReturnValue('granted')
+    mocks.captureMacGameWindow.mockResolvedValue(null)
+    mocks.getMacGameWindowInfo.mockResolvedValue(null)
     mocks.nativeAvailable.mockReturnValue(false)
   })
 
@@ -142,9 +157,60 @@ describe('captureScreenshot', () => {
     expect(result.width).toBe(1600)
     expect(result.height).toBe(900)
     expect(mocks.getSources).toHaveBeenCalledWith({
-      types: ['window', 'screen'],
+      types: process.platform === 'darwin' ? ['window'] : ['window', 'screen'],
       thumbnailSize: { width: 1280, height: 720 },
     })
+  })
+
+  it.skipIf(process.platform !== 'darwin')('does not OCR the desktop when the game window disappears', async () => {
+    mocks.getSources.mockResolvedValueOnce([])
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    const result = await captureScreenshot()
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('desktop fallback disabled')
+    expect(mocks.getSources).toHaveBeenCalledTimes(1)
+  })
+
+  it.skipIf(process.platform !== 'darwin')('uses native game frames independently of Electron window enumeration', async () => {
+    mocks.captureMacGameWindow.mockResolvedValue({
+      success: true, buffer: Buffer.from('game'), windowId: 123,
+      windowName: 'League of Legends (TM) Client', width: 1024, height: 576,
+    })
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    const result = await captureScreenshot({ thumbnailSize: { width: 1024, height: 576 } })
+    expect(result).toMatchObject({ success: true, hasLolWindow: true, captureMode: 'window', buffer: Buffer.from('game') })
+    expect(mocks.getSources).not.toHaveBeenCalled()
+  })
+
+  it.skipIf(process.platform !== 'darwin')('does not replace a native capture error with unrelated desktop pixels', async () => {
+    mocks.captureMacGameWindow.mockResolvedValue({ success: false, error: 'capture-timeout' })
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    expect(await captureScreenshot()).toEqual({ success: false, error: 'capture-timeout' })
+    expect(mocks.getSources).not.toHaveBeenCalled()
+  })
+
+  it.skipIf(process.platform !== 'darwin')('reports denied permission before requesting a capture', async () => {
+    mocks.getMediaAccessStatus.mockReturnValue('denied')
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    const result = await captureScreenshot()
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Screen Recording permission')
+    expect(mocks.getSources).not.toHaveBeenCalled()
+  })
+
+  it.skipIf(process.platform !== 'darwin')('requests Screen Recording access once per run when not granted', async () => {
+    mocks.getMediaAccessStatus.mockReturnValue('denied')
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    await captureScreenshot()
+    await captureScreenshot()
+    expect(mocks.requestMacScreenCaptureAccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('never requests Screen Recording access when it is already granted', async () => {
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    mocks.getSources.mockResolvedValue([])
+    await captureScreenshot()
+    expect(mocks.requestMacScreenCaptureAccess).not.toHaveBeenCalled()
   })
 
   it('accepts a smaller thumbnail only when the caller requests it', async () => {

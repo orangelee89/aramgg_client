@@ -1,7 +1,18 @@
 import type { SupportedDataLocale } from '../../shared/ipc-contract.ts'
+import { matchAnalysisMessages } from './match-analysis.ts'
+import { benchEvidenceMessages } from './bench-evidence.ts'
+import { matchDetailMessages } from './match-detail.ts'
+import { championRankingsMessages } from './champion-rankings.ts'
+import { mainNavigationMessages } from './main-navigation.ts'
+import { patchEvidenceMessages } from './patch-evidence.ts'
 
 export const messages = {
   'zh-CN': {
+    patchEvidence: patchEvidenceMessages['zh-CN'],
+    mainNavigation: mainNavigationMessages['zh-CN'],
+    championRankings: championRankingsMessages['zh-CN'],
+    matchAnalysis: matchAnalysisMessages['zh-CN'],
+    matchDetail: matchDetailMessages['zh-CN'],
     common: {
       cancel: '取消',
       close: '关闭',
@@ -39,6 +50,7 @@ export const messages = {
       mockGenerate: '模拟生成',
       refreshPreviewEveryClick: '每次点击刷新预览',
       windowPreview: '窗口预览',
+      devTools: '开发者工具',
       augmentOverlay: '海克斯浮窗',
       randomChampionAugments: '随机英雄与海克斯',
       championDetails: '英雄详情',
@@ -123,7 +135,7 @@ export const messages = {
       championDetailsTitle: '展示英雄详情',
       championDetailsDescription: '选人或英雄变化时展示独立的英雄详情窗口；关闭后仍保持英雄监控和其他后台功能。',
       hideDetailsTitle: '进游戏关闭英雄详情页',
-      hideDetailsDescription: '加载或进入游戏时自动隐藏英雄详情；关闭后保留窗口，是否置顶由下方开关控制。',
+      hideDetailsDescription: '加载或进入游戏时自动隐藏英雄详情；关闭后立即恢复当前英雄攻略，是否置顶由下方开关控制。',
       alwaysOnTopTitle: '英雄详情强制置顶',
       alwaysOnTopDescription: '让英雄详情保持在其他窗口上方，切换后立即生效；开启「进游戏关闭英雄详情页」时仍会自动隐藏。',
       topOverlayTitle: '展示海克斯顶部浮窗',
@@ -143,7 +155,16 @@ export const messages = {
         weighted: '胜率 × 0.6 + 选取率 × 0.2 + 场次权重 × 0.2，最高的高亮；三张都没有胜率时按选取率。',
       },
     },
+    inGameGuide: { title: '局内速查', core: '核心装备', firstLevels: '前 6 级', augments: '海克斯优先参考', note: '按住 Tab 查看，松开隐藏。按当前英雄常用路线推荐，请结合本局调整。' },
     monitor: {
+      openGuide: '打开当前英雄攻略',
+      enableTab: '启用 Tab 攻略',
+      disableTab: '关闭 Tab 攻略',
+      authorizeTab: '授权 Tab 攻略',
+      tabHint: '仅在游戏前台生效：按住 Tab 显示攻略，松开隐藏，与游戏计分板一起显示。',
+      tabPermission: '请在系统设置 → 隐私与安全性 → 输入监控中允许 ARAMGG，然后重启助手。仅处理游戏中的 Tab，不记录输入内容。',
+      guideUnavailable: '当前英雄暂不可用，请进入选人或对局后重试。',
+
       title: '英雄监控',
       monitoring: '监控中',
       stopped: '未启动',
@@ -220,6 +241,7 @@ export const messages = {
       autoEnabledWaiting: '自动配置已开启，检测到当前英雄后会写入游戏推荐',
     },
     bench: {
+      ...benchEvidenceMessages['zh-CN'],
       title: '席位推荐',
       refreshTitle: '刷新推荐',
       reading: '读取中',
@@ -287,7 +309,7 @@ export const messages = {
       noDescription: '暂无说明',
       loadFailed: '未能加载数据',
       guideFallback: '英雄攻略',
-      tabs: { augments: '海克斯', builds: '出装' },
+      tabs: { augments: '海克斯', builds: '出装', patches: '版本改动' },
       rarities: { all: '全部', silver: '白银', gold: '金色', prismatic: '棱彩' },
       unknownAugment: '未知海克斯',
       unavailable: '不可用',
@@ -409,11 +431,16 @@ export const messages = {
     },
   },
   'en-US': {
+    patchEvidence: patchEvidenceMessages['en-US'],
+    mainNavigation: mainNavigationMessages['en-US'],
+    championRankings: championRankingsMessages['en-US'],
+    matchAnalysis: matchAnalysisMessages['en-US'],
+    matchDetail: matchDetailMessages['en-US'],
     common: {
       cancel: 'Cancel', close: 'Close', current: 'Current', exit: 'Exit', hide: 'Hide', loading: 'Loading...', minimize: 'Minimize', refresh: 'Refresh', unknown: 'Unknown', unknownError: 'Unknown error',
     },
     display: {
-      brand: 'ARAMGG Assistant', runningStatus: 'STATUS', console: 'Console', clientVersion: 'Client version', dataVersion: 'Data version', appLanguage: 'Interface and data language', switching: 'Switching', lcuConnection: 'LCU connection', autoDiscover: 'Auto discovery', runningClient: 'Running client', runningClientWithFallback: 'Running client + manual fallback', appUpdate: 'App update', checkUpdate: 'Check for updates', openDownload: 'Open download page', gameDirectory: 'Game directory', browseDirectory: 'Browse directory', saveDirectory: 'Save directory', clearDirectory: 'Clear directory', useSuggestedDirectory: 'Use suggested directory', postGamePoster: 'POST-GAME POSTER', mockGenerate: 'Generate mock', refreshPreviewEveryClick: 'Refresh the preview on every click', windowPreview: 'WINDOW PREVIEW', augmentOverlay: 'Augment overlay', randomChampionAugments: 'Random champion and augments', championDetails: 'Champion details', randomChampionDetails: 'Random champion details', dataProbe: 'Data probe', checkDataLoading: 'Check data loading', logDirectory: 'Logs', feedback: 'Feedback:', changelog: 'Changelog', versionHistory: 'VERSION HISTORY', noChangelog: 'No changelog available', quitTitle: 'Exit ARAMGG Assistant?', quitDescription: 'Champion monitoring, automatic screenshots, and overlay updates will stop.', shareReport: 'Share report', currentVersion: 'Current', latestVersion: 'Latest {version}', patchVersion: 'Patch {version}', untaggedVersion: 'Untagged version', openApi: 'API', localeChanged: 'Interface and data language changed to {locale}', localeChangeFailed: 'Failed to change language: {error}', savedDirectoryUnavailable: 'The saved directory is unavailable', directoryValidationFailed: 'Directory validation failed', directoryAvailable: 'Directory is available', directoryUnavailable: 'Directory is unavailable', directorySelectionFailed: 'Directory selection failed', directoryAvailableAfterSave: 'Directory is available and will be enabled after saving', enterLeagueDirectory: 'Enter or select the League of Legends installation directory', directorySavedConnected: 'Fallback directory saved; LCU is connected', directorySavedWaiting: 'Fallback directory saved; waiting for the client', directorySaveFailed: 'Failed to save directory', directoryClearFailed: 'Failed to clear directory', directoryCleared: 'Manual fallback directory cleared', logOpenFailed: 'Failed to open the log directory', logOpened: "Log directory opened. Please send today's app-YYYY-MM-DD.log.", randomChampion: 'Random champion', benchCount: '{count} bench candidates', sendingFailed: 'Send failed', sendingFailedWithReason: 'Send failed: {error}', openingAugmentPreview: 'Selecting real data and opening the augment overlay...', augmentPreviewSent: 'Augment overlay test data sent', openingChampionPreview: 'Selecting real data and opening champion details...', championPreviewSent: 'Champion details test data sent', testingData: 'Testing data loading...', dataLoaded: 'Loaded {count} records | Source: https://data.dtodo.cn', pathCheckResults: 'Path check results:', testFailed: 'Test failed: {error}',
+      brand: 'ARAMGG Assistant', runningStatus: 'STATUS', console: 'Console', clientVersion: 'Client version', dataVersion: 'Data version', appLanguage: 'Interface and data language', switching: 'Switching', lcuConnection: 'LCU connection', autoDiscover: 'Auto discovery', runningClient: 'Running client', runningClientWithFallback: 'Running client + manual fallback', appUpdate: 'App update', checkUpdate: 'Check for updates', openDownload: 'Open download page', gameDirectory: 'Game directory', browseDirectory: 'Browse directory', saveDirectory: 'Save directory', clearDirectory: 'Clear directory', useSuggestedDirectory: 'Use suggested directory', postGamePoster: 'POST-GAME POSTER', mockGenerate: 'Generate mock', refreshPreviewEveryClick: 'Refresh the preview on every click', windowPreview: 'WINDOW PREVIEW', devTools: 'Developer tools', augmentOverlay: 'Augment overlay', randomChampionAugments: 'Random champion and augments', championDetails: 'Champion details', randomChampionDetails: 'Random champion details', dataProbe: 'Data probe', checkDataLoading: 'Check data loading', logDirectory: 'Logs', feedback: 'Feedback:', changelog: 'Changelog', versionHistory: 'VERSION HISTORY', noChangelog: 'No changelog available', quitTitle: 'Exit ARAMGG Assistant?', quitDescription: 'Champion monitoring, automatic screenshots, and overlay updates will stop.', shareReport: 'Share report', currentVersion: 'Current', latestVersion: 'Latest {version}', patchVersion: 'Patch {version}', untaggedVersion: 'Untagged version', openApi: 'API', localeChanged: 'Interface and data language changed to {locale}', localeChangeFailed: 'Failed to change language: {error}', savedDirectoryUnavailable: 'The saved directory is unavailable', directoryValidationFailed: 'Directory validation failed', directoryAvailable: 'Directory is available', directoryUnavailable: 'Directory is unavailable', directorySelectionFailed: 'Directory selection failed', directoryAvailableAfterSave: 'Directory is available and will be enabled after saving', enterLeagueDirectory: 'Enter or select the League of Legends installation directory', directorySavedConnected: 'Fallback directory saved; LCU is connected', directorySavedWaiting: 'Fallback directory saved; waiting for the client', directorySaveFailed: 'Failed to save directory', directoryClearFailed: 'Failed to clear directory', directoryCleared: 'Manual fallback directory cleared', logOpenFailed: 'Failed to open the log directory', logOpened: "Log directory opened. Please send today's app-YYYY-MM-DD.log.", randomChampion: 'Random champion', benchCount: '{count} bench candidates', sendingFailed: 'Send failed', sendingFailedWithReason: 'Send failed: {error}', openingAugmentPreview: 'Selecting real data and opening the augment overlay...', augmentPreviewSent: 'Augment overlay test data sent', openingChampionPreview: 'Selecting real data and opening champion details...', championPreviewSent: 'Champion details test data sent', testingData: 'Testing data loading...', dataLoaded: 'Loaded {count} records | Source: https://data.dtodo.cn', pathCheckResults: 'Path check results:', testFailed: 'Test failed: {error}',
       gameDirectoryAdminHint: 'If automatic detection fails, try running this app as administrator.',
     },
     feedback: {
@@ -421,13 +448,22 @@ export const messages = {
     },
     preferences: {
       title: 'WINDOW PREFERENCES', fullscreenTitle: 'Fullscreen display', fullscreenDescription: 'The augment overlay is an always-on-top desktop window and may be hidden by exclusive fullscreen. Use borderless or windowed mode when you need the overlay.', championDetailsTitle: 'Show champion details', championDetailsDescription: 'Show the separate Champion Details window during champion select or champion changes. Champion monitoring and other background features remain active when disabled.',
-      hideDetailsTitle: 'Close champion details in game', hideDetailsDescription: 'Hide champion details when loading or entering a game. When disabled, keep the window open and use the setting below to control whether it stays on top.',
+      hideDetailsTitle: 'Close champion details in game', hideDetailsDescription: 'Hide champion details when loading or entering a game. Disabling this immediately restores the current champion guide. Use the setting below to keep it on top.',
       alwaysOnTopTitle: 'Keep champion details on top', alwaysOnTopDescription: 'Keep champion details above other windows. Changes take effect immediately. The window still hides in game when the close-in-game setting is enabled.', topOverlayTitle: 'Show the top augment overlay', topOverlayDescription: 'Show three augment recommendations at the top of the screen when an augment choice is detected.', sidePanelTitle: 'Show the right recommendation panel', sidePanelDescription: 'Show augment and build recommendations on the right side of the game when an augment choice is detected.', postGameShareTitle: 'Automatically show the post-game poster', postGameShareDescription: 'Open the poster automatically after a match. When disabled, it remains available from the main window.', postGamePopupTitle: 'Show the post-game poster in a corner window', postGamePopupDescription: 'Show the poster in a small window at the bottom-right of the screen without bringing up the main window. When disabled, it opens inside the main window.',
       highlightModeTitle: 'Highlight method', highlightModeDescription: 'Which of the three augment cards gets highlighted.',
       highlightModes: { pickRate: 'Pick rate', winRate: 'Win rate', weighted: 'Weighted' },
       highlightModeHints: { pickRate: 'Highlights the most-picked card by CN per-champion pick-rate rank.', winRate: 'Highlights the card with the highest win rate for this champion; falls back to pick rate when none has a win rate.', weighted: 'Win rate × 0.6 + pick rate × 0.2 + games weight × 0.2; falls back to pick rate when none has a win rate.' },
     },
+    inGameGuide: { title: 'In-game quick guide', core: 'Core items', firstLevels: 'Levels 1–6', augments: 'Augments to look for', note: 'Hold Tab to view; release to hide. Common champion build; adapt it to your match.' },
     monitor: {
+      openGuide: 'Open current champion guide',
+      enableTab: 'Enable Tab guide',
+      disableTab: 'Disable Tab guide',
+      authorizeTab: 'Authorize Tab guide',
+      tabHint: 'While League is in front, hold Tab to show the guide alongside the scoreboard. Release Tab to hide it.',
+      tabPermission: 'Allow ARAMGG under System Settings → Privacy & Security → Input Monitoring, then restart. Only in-game Tab presses are handled; typed text is not recorded.',
+      guideUnavailable: 'Current champion unavailable. Try again in champion select or in game.',
+
       title: 'CHAMPION MONITOR', monitoring: 'Monitoring', stopped: 'Stopped', stop: 'Stop monitoring', start: 'Start monitoring', currentSelection: 'Current selection', lastDetected: 'Last detected', championId: 'Champion ID: {id}',
     },
     matchHistory: {
@@ -437,10 +473,11 @@ export const messages = {
       title: 'BUILD RECOMMENDATIONS', autoApplyTitle: 'Configure items for the current champion by default', autoApplyDescription: "When enabled, ARAMGG builds are written to the in-game shop recommendations after a champion and build data are loaded. When disabled, use the manual action in champion details.", configuring: 'Configuring', waitingForData: 'Waiting for build data', currentChampion: 'current champion build', multipleSets: '{count} builds', configure: 'Configure {target}', reconfigure: 'Reconfigure {target}', autoAppliedMultiple: 'Automatically added {count} recommended builds', appliedMultiple: 'Added {count} recommended builds', autoApplied: 'Automatically added the recommended build', applied: 'Added the recommended build', autoConfiguring: 'Configuring items automatically...', configuringNow: 'Configuring items...', configurationFailed: 'Item configuration failed', autoEnabledWaiting: 'Automatic configuration is enabled and will run when the current champion is detected',
     },
     bench: {
+      ...benchEvidenceMessages['en-US'],
       title: 'Bench recommendations', refreshTitle: 'Refresh recommendations', reading: 'Loading', refreshing: 'Refreshing', readOnly: 'Read-only advice', noBench: 'No bench', noChampion: 'No champion', noCandidates: 'No candidates', waitingSelection: 'Waiting for selection', apiUnavailable: 'Electron API is unavailable', waitingClient: 'Waiting for the client', waitingChampSelect: 'Waiting for champion select', sourceCurrent: 'Current', sourceBench: 'Bench', sourceTeammate: 'Teammate', sourceCandidate: 'Candidate', winRate: 'Win {value}', pickRate: 'Pick {value}', timeout: 'Bench data took longer than {seconds} seconds', loadFailed: 'Failed to load recommendations', candidateList: 'Bench candidate list', scrollLeft: 'See more bench candidates to the left', scrollRight: 'See more bench candidates to the right',
     },
     augment: {
-      recommendation: 'Augment recommendations', championDetails: 'Champion details', loadingChampion: 'Loading champion data...', championFallback: 'Champion {id}', waitingChampion: 'Waiting for champion selection', openGuide: 'Open champion guide', guide: 'Guide', tier: 'Tier {tier}', rank: 'Rank', winRateValue: 'Win rate {value}', winRate: 'Win rate', insufficientGames: 'No win rate', pickRate: 'Pick rate', games: 'Games', reading: 'Loading', relatedGuides: 'Related guides', articleCount: '{count} articles', coreAugments: 'Core augments', itemCount: '{count} items', descriptionLabel: '{name} description', noAugments: 'No augment data', buildRoutes: 'Build paths', routeCount: '{count} builds', gameCount: '{count} games', startingItems: 'Starting items', coreItem: 'Core {index}', fullItems: 'Full builds', fullItem: 'Full build {index}', laterItems: 'Later items', alternativeItems: 'Alternative items', summonerSpells: 'Summoner spells', skillOrder: 'Skill order', skillPriority: 'Prioritize {primary} → {secondary} → {tertiary}', recommendationRank: 'Option {index}', summonerSpellFallback: 'Summoner spell {id}', skillLevel: 'Level {level}: {skill}', noBuilds: 'No build data', source: 'Source: {source}', updatedAt: 'Updated {time}', noDescription: 'No description', loadFailed: 'Unable to load data', guideFallback: 'Champion guide', tabs: { augments: 'Augments', builds: 'Builds' }, rarities: { all: 'All', silver: 'Silver', gold: 'Gold', prismatic: 'Prismatic' }, unknownAugment: 'Unknown augment', unavailable: 'Unavailable', itemFallback: 'Item {id}', dataLoadFailed: 'Data loading failed', loadError: 'Failed to load data', priority: 'TOP PICKS', pickRateShort: 'Pick rate', scoreUnknown: 'Unknown', scoreMustPick: 'Must pick', scoreStrong: 'Strong', scoreRecommended: 'Recommended', scoreOptional: 'Optional', scoreNiche: 'Niche', noData: 'No data available',
+      recommendation: 'Augment recommendations', championDetails: 'Champion details', loadingChampion: 'Loading champion data...', championFallback: 'Champion {id}', waitingChampion: 'Waiting for champion selection', openGuide: 'Open champion guide', guide: 'Guide', tier: 'Tier {tier}', rank: 'Rank', winRateValue: 'Win rate {value}', winRate: 'Win rate', insufficientGames: 'No win rate', pickRate: 'Pick rate', games: 'Games', reading: 'Loading', relatedGuides: 'Related guides', articleCount: '{count} articles', coreAugments: 'Core augments', itemCount: '{count} items', descriptionLabel: '{name} description', noAugments: 'No augment data', buildRoutes: 'Build paths', routeCount: '{count} builds', gameCount: '{count} games', startingItems: 'Starting items', coreItem: 'Core {index}', fullItems: 'Full builds', fullItem: 'Full build {index}', laterItems: 'Later items', alternativeItems: 'Alternative items', summonerSpells: 'Summoner spells', skillOrder: 'Skill order', skillPriority: 'Prioritize {primary} → {secondary} → {tertiary}', recommendationRank: 'Option {index}', summonerSpellFallback: 'Summoner spell {id}', skillLevel: 'Level {level}: {skill}', noBuilds: 'No build data', source: 'Source: {source}', updatedAt: 'Updated {time}', noDescription: 'No description', loadFailed: 'Unable to load data', guideFallback: 'Champion guide', tabs: { augments: 'Augments', builds: 'Builds', patches: 'Patch changes' }, rarities: { all: 'All', silver: 'Silver', gold: 'Gold', prismatic: 'Prismatic' }, unknownAugment: 'Unknown augment', unavailable: 'Unavailable', itemFallback: 'Item {id}', dataLoadFailed: 'Data loading failed', loadError: 'Failed to load data', priority: 'TOP PICKS', pickRateShort: 'Pick rate', scoreUnknown: 'Unknown', scoreMustPick: 'Must pick', scoreStrong: 'Strong', scoreRecommended: 'Recommended', scoreOptional: 'Optional', scoreNiche: 'Niche', noData: 'No data available',
     },
     postGame: {
       kicker: 'POST-GAME SHARE', title: 'ARAMGG Post-game Poster', copy: 'Copy', copyTitle: 'Copy poster', save: 'Save', saveTitle: 'Save image', footer: 'Shared from ARAMGG Assistant - aramgg.com', victory: 'VICTORY', defeat: 'DEFEAT', result: 'POST-GAME', championFallback: 'Match champion', rarityPrismatic: 'Prismatic', rarityGold: 'Gold', raritySilver: 'Silver', rarityUnknown: 'Unidentified', augment: 'Augment', unknownAugment: 'Unidentified augment', augmentSuffix: '{rarity} augment', stats: 'MATCH STATS', damage: 'Damage', damageTaken: 'Damage taken', gold: 'Gold', augments: 'MATCH AUGMENTS', notGenerated: 'Poster has not been generated', operationFailed: 'Operation failed', copyFailed: 'Copy failed', copied: 'Poster copied', saveFailed: 'Save failed', saved: 'Poster saved', generating: 'Generating', shareReport: 'Share report', unavailable: 'Post-game poster unavailable: {error}', noRecentGame: 'No recent match is available to share.', generateFailed: 'Failed to generate post-game poster: {error}', mockFailed: 'Mock poster generation failed', mockFailedWithReason: 'Mock generation failed: {error}', damageCompare: 'Damage comparison', damageCompareHint: 'Tick other players to add a damage dealt / taken bar chart under Gold & KDA', teamAlly: 'Allies', teamEnemy: 'Enemies', you: 'You', noComparePlayers: 'No damage data for other players in this match', damageDealtShort: 'Dealt', damageTakenShort: 'Taken', pinPlayer: 'Pin this player: auto-compare whenever they are in the match', horseSection: 'MATCH TITLE', horseName: '{parts} Horse', horsePartJoiner: ' ', horsePartLeader: 'Lead', horsePartTop: 'Fierce', horsePartTank: 'Spinning', horsePartKills: 'Headhunter', horsePartAssists: 'Merciful', horsePartHeal: 'Lifeline', horsePartControl: 'Sticky', horsePartDeaths: 'Feeding', horsePartLowKda: 'Outsider', horsePartNormal: 'Plain', horseHeadlineLeader: 'GOAT!', horseHeadlineLowKda: 'Outsider???', horseReasonLeader: 'MVP rating {value} · highest{bonus}', horseLeaderBonus: ' (incl. counter-item bonus)', horseReasonLine: '{name}: {reason}', horseReasonTop: 'Damage {value} · highest', horseReasonTank: 'Damage taken {value} · highest', horseReasonKills: 'Kills {value} · most', horseReasonAssists: 'Assists {value} · most', horseReasonHeal: 'Healing {value} · highest', horseReasonControl: 'Crowd control {value}s · longest', horseReasonDeaths: 'Deaths {value} · most', horseLowKdaLine: 'Outsider? KDA {value}, lowest on the team?', horseLeaderLine: 'GOAT! MVP rating {value} · highest{bonus}', horseReasonNormal: 'Not the match leader in any stat',
@@ -453,11 +490,16 @@ export const messages = {
     },
   },
   'zh-TW': {
+    patchEvidence: patchEvidenceMessages['zh-TW'],
+    mainNavigation: mainNavigationMessages['zh-TW'],
+    championRankings: championRankingsMessages['zh-TW'],
+    matchAnalysis: matchAnalysisMessages['zh-TW'],
+    matchDetail: matchDetailMessages['zh-TW'],
     common: {
       cancel: '取消', close: '關閉', current: '目前', exit: '退出', hide: '隱藏', loading: '載入中...', minimize: '最小化', refresh: '重新整理', unknown: '未知', unknownError: '未知錯誤',
     },
     display: {
-      brand: 'ARAMGG助手', runningStatus: '執行狀態', console: '控制台', clientVersion: '客戶端版本', dataVersion: '資料版本', appLanguage: '介面與資料語言', switching: '切換中', lcuConnection: 'LCU 連線', autoDiscover: '自動探索', runningClient: '執行中的客戶端', runningClientWithFallback: '執行中的客戶端 + 手動備援', appUpdate: '應用程式更新', checkUpdate: '檢查更新', openDownload: '開啟下載頁面', gameDirectory: '遊戲目錄', browseDirectory: '瀏覽目錄', saveDirectory: '儲存目錄', clearDirectory: '清除目錄', useSuggestedDirectory: '使用建議目錄', postGamePoster: '賽後海報', mockGenerate: '模擬產生', refreshPreviewEveryClick: '每次點擊重新整理預覽', windowPreview: '視窗預覽', augmentOverlay: '增幅裝置浮窗', randomChampionAugments: '隨機英雄與增幅裝置', championDetails: '英雄詳情', randomChampionDetails: '隨機英雄詳情', dataProbe: '資料探測', checkDataLoading: '檢查資料載入', logDirectory: '日誌目錄', feedback: '意見或建議：', changelog: '更新日誌', versionHistory: '版本記錄', noChangelog: '暫無更新日誌', quitTitle: '退出ARAMGG助手？', quitDescription: '退出後，英雄監控、自動截圖和浮窗更新都會停止。', shareReport: '分享戰報', currentVersion: '目前', latestVersion: '最新 {version}', patchVersion: '修補程式 {version}', untaggedVersion: '未標記版本', openApi: '開放 API', localeChanged: '介面與資料語言已切換為 {locale}', localeChangeFailed: '切換語言失敗：{error}', savedDirectoryUnavailable: '已儲存的目錄無法使用', directoryValidationFailed: '目錄驗證失敗', directoryAvailable: '目錄可用', directoryUnavailable: '目錄無法使用', directorySelectionFailed: '目錄選擇失敗', directoryAvailableAfterSave: '目錄可用，儲存後啟用', enterLeagueDirectory: '請輸入或選擇英雄聯盟安裝目錄', directorySavedConnected: '備援目錄已儲存，LCU 已連線', directorySavedWaiting: '備援目錄已儲存，等待客戶端啟動', directorySaveFailed: '儲存目錄失敗', directoryClearFailed: '清除目錄失敗', directoryCleared: '已清除手動備援目錄', logOpenFailed: '開啟日誌目錄失敗', logOpened: '日誌目錄已開啟。請傳送今天的 app-YYYY-MM-DD.log。', randomChampion: '隨機英雄', benchCount: '候選席位 {count} 個', sendingFailed: '傳送失敗', sendingFailedWithReason: '傳送失敗：{error}', openingAugmentPreview: '正在抽取真實資料並開啟增幅裝置浮窗...', augmentPreviewSent: '增幅裝置浮窗測試資料已傳送', openingChampionPreview: '正在抽取真實資料並開啟英雄詳情...', championPreviewSent: '英雄詳情測試資料已傳送', testingData: '正在測試資料載入...', dataLoaded: '資料載入成功：{count} 筆記錄 | 路徑：https://data.dtodo.cn', pathCheckResults: '路徑檢查結果：', testFailed: '測試失敗：{error}',
+      brand: 'ARAMGG助手', runningStatus: '執行狀態', console: '控制台', clientVersion: '客戶端版本', dataVersion: '資料版本', appLanguage: '介面與資料語言', switching: '切換中', lcuConnection: 'LCU 連線', autoDiscover: '自動探索', runningClient: '執行中的客戶端', runningClientWithFallback: '執行中的客戶端 + 手動備援', appUpdate: '應用程式更新', checkUpdate: '檢查更新', openDownload: '開啟下載頁面', gameDirectory: '遊戲目錄', browseDirectory: '瀏覽目錄', saveDirectory: '儲存目錄', clearDirectory: '清除目錄', useSuggestedDirectory: '使用建議目錄', postGamePoster: '賽後海報', mockGenerate: '模擬產生', refreshPreviewEveryClick: '每次點擊重新整理預覽', windowPreview: '視窗預覽', devTools: '開發者工具', augmentOverlay: '增幅裝置浮窗', randomChampionAugments: '隨機英雄與增幅裝置', championDetails: '英雄詳情', randomChampionDetails: '隨機英雄詳情', dataProbe: '資料探測', checkDataLoading: '檢查資料載入', logDirectory: '日誌目錄', feedback: '意見或建議：', changelog: '更新日誌', versionHistory: '版本記錄', noChangelog: '暫無更新日誌', quitTitle: '退出ARAMGG助手？', quitDescription: '退出後，英雄監控、自動截圖和浮窗更新都會停止。', shareReport: '分享戰報', currentVersion: '目前', latestVersion: '最新 {version}', patchVersion: '修補程式 {version}', untaggedVersion: '未標記版本', openApi: '開放 API', localeChanged: '介面與資料語言已切換為 {locale}', localeChangeFailed: '切換語言失敗：{error}', savedDirectoryUnavailable: '已儲存的目錄無法使用', directoryValidationFailed: '目錄驗證失敗', directoryAvailable: '目錄可用', directoryUnavailable: '目錄無法使用', directorySelectionFailed: '目錄選擇失敗', directoryAvailableAfterSave: '目錄可用，儲存後啟用', enterLeagueDirectory: '請輸入或選擇英雄聯盟安裝目錄', directorySavedConnected: '備援目錄已儲存，LCU 已連線', directorySavedWaiting: '備援目錄已儲存，等待客戶端啟動', directorySaveFailed: '儲存目錄失敗', directoryClearFailed: '清除目錄失敗', directoryCleared: '已清除手動備援目錄', logOpenFailed: '開啟日誌目錄失敗', logOpened: '日誌目錄已開啟。請傳送今天的 app-YYYY-MM-DD.log。', randomChampion: '隨機英雄', benchCount: '候選席位 {count} 個', sendingFailed: '傳送失敗', sendingFailedWithReason: '傳送失敗：{error}', openingAugmentPreview: '正在抽取真實資料並開啟增幅裝置浮窗...', augmentPreviewSent: '增幅裝置浮窗測試資料已傳送', openingChampionPreview: '正在抽取真實資料並開啟英雄詳情...', championPreviewSent: '英雄詳情測試資料已傳送', testingData: '正在測試資料載入...', dataLoaded: '資料載入成功：{count} 筆記錄 | 路徑：https://data.dtodo.cn', pathCheckResults: '路徑檢查結果：', testFailed: '測試失敗：{error}',
       gameDirectoryAdminHint: '如果自動偵測失敗，可嘗試以系統管理員身分執行本應用程式。',
     },
     feedback: {
@@ -465,13 +507,22 @@ export const messages = {
     },
     preferences: {
       title: '視窗偏好', fullscreenTitle: '全螢幕顯示說明', fullscreenDescription: '增幅裝置浮窗是桌面置頂視窗，獨佔全螢幕可能會遮擋它；需要顯示浮窗時，請將英雄聯盟影片設定切換為無邊框或視窗化。', championDetailsTitle: '顯示英雄詳情', championDetailsDescription: '選角或英雄變化時顯示獨立的英雄詳情視窗；關閉後仍保持英雄監控與其他後台功能。',
-      hideDetailsTitle: '進入遊戲時關閉英雄詳情頁', hideDetailsDescription: '載入或進入遊戲時自動隱藏英雄詳情；關閉後保留視窗，是否置頂由下方開關控制。',
+      hideDetailsTitle: '進入遊戲時關閉英雄詳情頁', hideDetailsDescription: '載入或進入遊戲時自動隱藏英雄詳情；關閉後立即恢復目前英雄攻略，是否置頂由下方開關控制。',
       alwaysOnTopTitle: '英雄詳情強制置頂', alwaysOnTopDescription: '讓英雄詳情保持在其他視窗上方，切換後立即生效；開啟「進入遊戲時關閉英雄詳情頁」時仍會自動隱藏。', topOverlayTitle: '顯示頂部增幅裝置浮窗', topOverlayDescription: '辨識到增幅裝置選擇時，在螢幕頂部顯示三張推薦。', sidePanelTitle: '顯示右側推薦清單', sidePanelDescription: '辨識到增幅裝置選擇時，在遊戲右側顯示增幅裝置與出裝推薦清單。', postGameShareTitle: '自動顯示賽後海報', postGameShareDescription: '遊戲結束後自動開啟賽後海報；關閉後仍可在主頁面手動產生和查看。', postGamePopupTitle: '賽後海報彈在螢幕右下角', postGamePopupDescription: '以獨立小視窗顯示在螢幕右下角，不喚出助手主視窗；關閉後改為在主視窗內開啟。',
       highlightModeTitle: '高亮計算方式', highlightModeDescription: '三張增幅裝置卡中高亮哪一張。',
       highlightModes: { pickRate: '選取率', winRate: '勝率', weighted: '加權計算' },
       highlightModeHints: { pickRate: '依國服單英雄選取率排名，最常被選的高亮。', winRate: '依本英雄 × 該增幅裝置勝率，最高的高亮；三張都沒有勝率時依選取率。', weighted: '勝率 × 0.6 + 選取率 × 0.2 + 場次權重 × 0.2，最高的高亮；三張都沒有勝率時依選取率。' },
     },
+    inGameGuide: { title: '局內速查', core: '核心裝備', firstLevels: '前 6 級', augments: '海克斯優先參考', note: '按住 Tab 查看，放開隱藏。依目前英雄常用路線推薦，請配合本局調整。' },
     monitor: {
+      openGuide: '開啟目前英雄攻略',
+      enableTab: '啟用 Tab 攻略',
+      disableTab: '關閉 Tab 攻略',
+      authorizeTab: '授權 Tab 攻略',
+      tabHint: '僅在遊戲前景生效：按住 Tab 顯示攻略，放開隱藏，與遊戲計分板一起顯示。',
+      tabPermission: '請在系統設定 → 隱私權與安全性 → 輸入監控中允許 ARAMGG，再重新啟動助手。僅處理遊戲中的 Tab，不記錄輸入內容。',
+      guideUnavailable: '目前英雄暫不可用，請進入選角或對局後重試。',
+
       title: '英雄監控', monitoring: '監控中', stopped: '未啟動', stop: '停止監控', start: '啟動監控', currentSelection: '目前選擇', lastDetected: '最後偵測', championId: '英雄 ID：{id}',
     },
     matchHistory: {
@@ -481,10 +532,11 @@ export const messages = {
       title: '出裝推薦', autoApplyTitle: '預設設定目前英雄裝備', autoApplyDescription: '開啟後，選到英雄並載入出裝資料時，自動將該英雄的 ARAMGG 出裝寫入遊戲商店推薦。關閉後不會自動寫入，可在英雄詳情中手動設定。', configuring: '設定中', waitingForData: '等待出裝資料', currentChampion: '目前英雄裝備', multipleSets: '{count} 套裝備', configure: '設定 {target}', reconfigure: '重新設定 {target}', autoAppliedMultiple: '已自動寫入 {count} 套遊戲推薦', appliedMultiple: '已寫入 {count} 套遊戲推薦', autoApplied: '已自動寫入遊戲推薦', applied: '已寫入遊戲推薦', autoConfiguring: '正在自動設定裝備...', configuringNow: '正在設定裝備...', configurationFailed: '裝備設定失敗', autoEnabledWaiting: '自動設定已開啟，偵測到目前英雄後會寫入遊戲推薦',
     },
     bench: {
+      ...benchEvidenceMessages['zh-TW'],
       title: '席位推薦', refreshTitle: '重新整理推薦', reading: '讀取中', refreshing: '重新整理中', readOnly: '唯讀建議', noBench: '無席位', noChampion: '未選英雄', noCandidates: '暫無英雄', waitingSelection: '等待選角', apiUnavailable: 'Electron API 無法使用', waitingClient: '等待客戶端連線', waitingChampSelect: '等待進入選角階段', sourceCurrent: '目前', sourceBench: '席位', sourceTeammate: '隊友', sourceCandidate: '候選', winRate: '勝率 {value}', pickRate: '選取 {value}', timeout: '席位資料讀取超過 {seconds} 秒', loadFailed: '推薦讀取失敗', candidateList: '席位候選清單', scrollLeft: '向左查看更多席位候選', scrollRight: '向右查看更多席位候選',
     },
     augment: {
-      recommendation: '增幅裝置推薦', championDetails: '英雄詳情', loadingChampion: '正在載入英雄資料...', championFallback: '英雄 {id}', waitingChampion: '等待英雄選擇', openGuide: '開啟英雄攻略', guide: '攻略', tier: '梯隊 {tier}', rank: '排名', winRateValue: '勝率 {value}', winRate: '勝率', insufficientGames: '勝率不足', pickRate: '選取率', games: '場次', reading: '讀取中', relatedGuides: '相關攻略', articleCount: '{count} 篇', coreAugments: '核心增幅裝置', itemCount: '{count} 項', descriptionLabel: '{name}說明', noAugments: '暫無增幅裝置資料', buildRoutes: '出裝路線', routeCount: '{count} 套', gameCount: '{count} 場', startingItems: '起始裝備', coreItem: '核心 {index}', fullItems: '完整出裝', fullItem: '完整出裝 {index}', laterItems: '後續裝備', alternativeItems: '備選裝備', summonerSpells: '召喚師技能', skillOrder: '技能加點', skillPriority: '優先 {primary} → {secondary} → {tertiary}', recommendationRank: '方案 {index}', summonerSpellFallback: '召喚師技能 {id}', skillLevel: '{level} 級：{skill}', noBuilds: '暫無出裝資料', source: '來源：{source}', updatedAt: '更新於 {time}', noDescription: '暫無說明', loadFailed: '無法載入資料', guideFallback: '英雄攻略', tabs: { augments: '增幅裝置', builds: '出裝' }, rarities: { all: '全部', silver: '白銀', gold: '黃金', prismatic: '稜彩' }, unknownAugment: '未知增幅裝置', unavailable: '無法使用', itemFallback: '裝備 {id}', dataLoadFailed: '資料載入失敗', loadError: '載入資料失敗', priority: '優先推薦', pickRateShort: '選取率', scoreUnknown: '未知', scoreMustPick: '必選', scoreStrong: '強推', scoreRecommended: '推薦', scoreOptional: '可選', scoreNiche: '冷門', noData: '無可用資料',
+      recommendation: '增幅裝置推薦', championDetails: '英雄詳情', loadingChampion: '正在載入英雄資料...', championFallback: '英雄 {id}', waitingChampion: '等待英雄選擇', openGuide: '開啟英雄攻略', guide: '攻略', tier: '梯隊 {tier}', rank: '排名', winRateValue: '勝率 {value}', winRate: '勝率', insufficientGames: '勝率不足', pickRate: '選取率', games: '場次', reading: '讀取中', relatedGuides: '相關攻略', articleCount: '{count} 篇', coreAugments: '核心增幅裝置', itemCount: '{count} 項', descriptionLabel: '{name}說明', noAugments: '暫無增幅裝置資料', buildRoutes: '出裝路線', routeCount: '{count} 套', gameCount: '{count} 場', startingItems: '起始裝備', coreItem: '核心 {index}', fullItems: '完整出裝', fullItem: '完整出裝 {index}', laterItems: '後續裝備', alternativeItems: '備選裝備', summonerSpells: '召喚師技能', skillOrder: '技能加點', skillPriority: '優先 {primary} → {secondary} → {tertiary}', recommendationRank: '方案 {index}', summonerSpellFallback: '召喚師技能 {id}', skillLevel: '{level} 級：{skill}', noBuilds: '暫無出裝資料', source: '來源：{source}', updatedAt: '更新於 {time}', noDescription: '暫無說明', loadFailed: '無法載入資料', guideFallback: '英雄攻略', tabs: { augments: '增幅裝置', builds: '出裝', patches: '版本改動' }, rarities: { all: '全部', silver: '白銀', gold: '黃金', prismatic: '稜彩' }, unknownAugment: '未知增幅裝置', unavailable: '無法使用', itemFallback: '裝備 {id}', dataLoadFailed: '資料載入失敗', loadError: '載入資料失敗', priority: '優先推薦', pickRateShort: '選取率', scoreUnknown: '未知', scoreMustPick: '必選', scoreStrong: '強推', scoreRecommended: '推薦', scoreOptional: '可選', scoreNiche: '冷門', noData: '無可用資料',
     },
     postGame: {
       kicker: '賽後分享', title: 'ARAMGG 賽後海報', copy: '複製', copyTitle: '複製海報', save: '儲存', saveTitle: '儲存圖片', footer: '分享自ARAMGG助手-aramgg.com', victory: '勝利', defeat: '惜敗', result: '賽後', championFallback: '本局英雄', rarityPrismatic: '稜彩', rarityGold: '黃金', raritySilver: '白銀', rarityUnknown: '待辨識', augment: '增幅裝置', unknownAugment: '未辨識增幅裝置', augmentSuffix: '{rarity}增幅裝置', stats: '戰績', damage: '輸出', damageTaken: '承傷', gold: '經濟', augments: '本局增幅裝置', notGenerated: '海報尚未產生', operationFailed: '操作失敗', copyFailed: '複製失敗', copied: '海報已複製', saveFailed: '儲存失敗', saved: '海報已儲存', generating: '產生中', shareReport: '分享戰報', unavailable: '賽後海報暫時無法使用：{error}', noRecentGame: '暫未擷取到可分享的最近對局。', generateFailed: '產生賽後海報失敗：{error}', mockFailed: '模擬海報產生失敗', mockFailedWithReason: '模擬產生失敗：{error}', damageCompare: '傷害對比', damageCompareHint: '勾選其他玩家後，海報會在經濟/KDA 下方加入輸出與承傷長條圖', teamAlly: '我方', teamEnemy: '敵方', you: '你', noComparePlayers: '本局沒有其他玩家的傷害資料', damageDealtShort: '輸出', damageTakenShort: '承傷', pinPlayer: '固定這位玩家：之後同場時自動加入對比', horseSection: '本局稱號', horseName: '{parts}馬', horsePartJoiner: '', horsePartLeader: '領頭', horsePartTop: '悍', horsePartTank: '陀螺', horsePartKills: 'K頭', horsePartAssists: '仁慈', horsePartHeal: '血泵', horsePartControl: '膠黏', horsePartDeaths: '死', horsePartLowKda: '外', horsePartNormal: '普通', horseHeadlineLeader: '個斑馬!', horseHeadlineLowKda: '外馬???', horseReasonLeader: 'MVP 綜合評分 {value} 全場最高{bonus}', horseLeaderBonus: '（含針對性出裝加成）', horseReasonLine: '{name}：{reason}', horseReasonTop: '輸出 {value} 全場最高', horseReasonTank: '承傷 {value} 全場最多', horseReasonKills: '人頭 {value} 全場最多', horseReasonAssists: '助攻 {value} 全場最多', horseReasonHeal: '治療量 {value} 全場最高', horseReasonControl: '控制敵方 {value} 秒全場最長', horseReasonDeaths: '死亡 {value} 次全場最多', horseLowKdaLine: '外馬？KDA {value}，全隊最低？', horseLeaderLine: '個斑馬！MVP 綜合評分 {value} 全場最高{bonus}', horseReasonNormal: '各項都不是全場之最',

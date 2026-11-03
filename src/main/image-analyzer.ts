@@ -37,6 +37,7 @@ import { onTencentDataUpdated } from './services/tencent-data/tencent-data-servi
 // 数据镜像已直接下发 zh_MY 名字（国服名作别名，见 docs/TENCENT_DATA_SOURCE.md）；
 // 这份内置 zh_MY 名字表作为离线 / 直连掌盟时的 OCR 别名兜底。
 import zhMyOcrAliases from './data/augment-ocr-aliases.zh-MY.json' with { type: 'json' }
+import { hasVisibleAugmentCardFrames } from './augment-card-frame.ts'
 
 sharp.concurrency(Number(process.env.ARAMGG_SHARP_CONCURRENCY) || 2)
 
@@ -1947,6 +1948,8 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             titleActivity,
             rerollButtons: null,
             ocrSkippedReason: null,
+            // 仅 Mac 预览启用：悬停说明遮住标题但三张卡框仍在时保留已有推荐，Windows 不计算也不改变清除逻辑。
+            cardFramesVisible: process.platform === 'darwin' && hasVisibleAugmentCardFrames(rawImage),
         }
 
         if (!titleActivity.likely) {

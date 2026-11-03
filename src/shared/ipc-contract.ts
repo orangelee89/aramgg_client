@@ -1,4 +1,5 @@
 import type { AugmentHighlightMode } from './augment-highlight.ts'
+import type { ChampionPatchEvidence } from './patch-evidence.ts'
 
 export type Unsubscribe = () => void
 
@@ -8,6 +9,7 @@ export type AppStoreKey =
   | 'championInsight.showDetails'
   | 'championInsight.hideOnGameStart'
   | 'championInsight.alwaysOnTop'
+  | 'championInsight.tabGuide'
   | 'augments.showTopOverlay'
   | 'augments.showSidePanel'
   | 'augments.highlightMode'
@@ -16,6 +18,34 @@ export type AppStoreKey =
   | 'postGameShare.popupWindow'
 
 export type SupportedDataLocale = 'zh-CN' | 'zh-TW' | 'en-US'
+
+export interface ChampionRankingEntry {
+  championId: number
+  name: string
+  alias: string
+  title: string
+  iconUrl: string | null
+  tier: number | null
+  winRate: number | null
+  pickRate: number | null
+  numGames: number | null
+  gamePatch: string
+  statsDate: string
+  source: string
+  region: string
+}
+
+export interface ChampionRankings {
+  locale: SupportedDataLocale
+  dataVersion: string
+  gamePatch: string
+  generatedAt: string
+  champions: ChampionRankingEntry[]
+}
+
+export interface ChampionRankingsResult extends OperationResult {
+  data?: ChampionRankings
+}
 
 export type FeedbackCategory = 'suggestion' | 'question' | 'bug' | 'other'
 
@@ -114,9 +144,41 @@ export interface HextechAramMatchHistoryAsset extends LooseRecord {
   id: number
   name?: string
   iconUrl?: string
+  description?: string
+  rarity?: string
 }
 
 export type HextechAramMatchResult = 'win' | 'loss' | 'remake'
+
+export interface HextechAramMatchParticipant {
+  participantId: number
+  playerKey?: string
+  teamId: number
+  playerName: string
+  isCurrentPlayer: boolean
+  championId: number
+  championName?: string
+  championIconUrl?: string
+  result: HextechAramMatchResult
+  kills: number
+  deaths: number
+  assists: number
+  // Query-only raw values; display K/D/A may already have missing values normalized to zero.
+  participationStats?: { kills: number | null; assists: number | null }
+  damageToChampions: number | null
+  damageTaken: number | null
+  totalHeal: number | null
+  damageToTurrets: number | null
+  goldEarned: number | null
+  minionsKilled: number | null
+  spell1Id: number | null
+  spell2Id: number | null
+  tripleKills: number | null
+  quadraKills: number | null
+  pentaKills: number | null
+  items: HextechAramMatchHistoryAsset[]
+  augments: HextechAramMatchHistoryAsset[]
+}
 
 export interface HextechAramMatchHistoryMatch extends LooseRecord {
   gameId: number
@@ -132,9 +194,13 @@ export interface HextechAramMatchHistoryMatch extends LooseRecord {
   result: HextechAramMatchResult
   augments: HextechAramMatchHistoryAsset[]
   items: HextechAramMatchHistoryAsset[]
+  participants?: HextechAramMatchParticipant[]
 }
 
 export interface HextechAramMatchHistoryPage extends LooseRecord {
+  /** Ephemeral main-process selection capability; absent outside a live main-window query. */
+  snapshotId?: string
+  locale?: SupportedDataLocale
   playerName: string
   platformId: string
   queriedAt: number
@@ -155,6 +221,23 @@ export interface HextechAramMatchHistoryQueryResult extends OperationResult {
   data?: HextechAramMatchHistoryPage
 }
 
+export interface MatchDetailSelection {
+  snapshotId: string
+  gameId: number
+}
+
+export interface MatchDetailSnapshot {
+  match: HextechAramMatchHistoryMatch
+  playerName: string
+  platformId: string
+  locale: SupportedDataLocale
+  queriedAt: number
+}
+
+export interface MatchDetailSnapshotResult extends OperationResult {
+  data?: MatchDetailSnapshot
+}
+
 export interface ClientVersionInfo extends LooseRecord {
   currentVersion?: string
   latestVersion?: string
@@ -172,6 +255,8 @@ export interface AppUpdateState extends LooseRecord {
   phase?: string
   latestVersion?: string
   manualDownloadUrl?: string
+  /** 当前平台不使用远端更新源（macOS 预览版），renderer 不展示 Windows 下载入口和检查更新。 */
+  platformUnsupported?: boolean
   downloadDeferred?: boolean
   canCheck?: boolean
   canInstall?: boolean
@@ -258,15 +343,28 @@ export interface AramRecommendationCandidate extends LooseRecord {
   winRate: number | null
   pickRate: number | null
   games: number | null
+  tier: number | null
+  dataAvailable: boolean
   score: number
+  /** Weighted field availability, not a statistical confidence or win probability. */
   confidence: number
   reasons: string[]
 }
+
+export type AramRecommendationDecisionReason =
+  | 'no-candidates'
+  | 'no-current-champion'
+  | 'no-alternatives'
+  | 'current-best'
+  | 'small-difference'
+  | 'teammate-higher'
+  | 'bench-higher'
 
 export interface AramBenchRecommendation extends LooseRecord {
   readOnly: true
   status: string
   reason: string | null
+  decisionReason: AramRecommendationDecisionReason | null
   gameflowPhase: GameflowPhase | null
   currentChampion: AramRecommendationCandidate | null
   recommendedChampion: AramRecommendationCandidate | null
@@ -315,7 +413,15 @@ export interface LocaleInfo extends LooseRecord {
   }>
 }
 
+/** 按住 Tab 局内速查状态；supported 仅在 macOS 原生监听可用时为 true。 */
+export interface TabGuideStatus {
+  supported: boolean
+  enabled: boolean
+  authorized: boolean
+}
+
 export interface OverlayPayload extends LooseRecord {
+  presentation?: 'in-game' | 'full'
   championId?: number | null
   championName?: string
   augments?: LooseRecord[]
@@ -327,6 +433,12 @@ export interface OverlayPayload extends LooseRecord {
 export interface GamePhaseChangedPayload {
   phase: GameflowPhase | null
   prevPhase: GameflowPhase | null
+}
+
+export interface LcuConnectionState {
+  connection: 'checking' | 'connected' | 'disconnected' | 'unavailable'
+  phase: GameflowPhase | null
+  revision: number
 }
 
 export interface ChampionMonitorState {
@@ -356,6 +468,7 @@ export interface ElectronEventMap {
   'winrate-updated': [payload: LooseRecord]
   'auto-screenshot-taken': [payload: LooseRecord]
   'game-phase-changed': [payload: GamePhaseChangedPayload]
+  'lcu-connection-changed': [payload: LcuConnectionState]
   'champion-monitor-changed': [payload: ChampionMonitorState]
   'champ-select-start': [payload?: LooseRecord]
   'item-set-auto-apply-completed': [payload: LooseRecord]
@@ -386,6 +499,9 @@ export interface ElectronAPI {
   windows: {
     ready(): void
     showPopup(data: OverlayPayload): void
+    showCurrentChampion(): Promise<OperationResult>
+    getTabGuideStatus(): Promise<TabGuideStatus>
+    setTabGuideEnabled(enabled: boolean): Promise<TabGuideStatus>
     hidePopup(reason?: string): void
     hideFloating(reason?: string): void
     hideAugmentSidePanel(reason?: string): void
@@ -418,7 +534,11 @@ export interface ElectronAPI {
   }
   winrate: {
     get(data: LooseRecord): Promise<OperationResult & { augments?: LooseRecord[]; timing?: LooseRecord }>
-    loadChampionData(championId: number): Promise<OperationResult & { data?: LooseRecord }>
+    loadChampionData(championId: number): Promise<OperationResult & { locale?: SupportedDataLocale; dataVersion?: string; data?: LooseRecord & { patchEvidence?: ChampionPatchEvidence | null } }>
+  }
+  champions: {
+    getRankings(): Promise<ChampionRankingsResult>
+    openDetail(championId: number): Promise<OperationResult>
   }
   autoScreenshot: {
     start(config?: LooseRecord): Promise<LooseRecord>
@@ -434,11 +554,14 @@ export interface ElectronAPI {
   matchHistory: {
     getLocalSummary(): Promise<LocalMatchHistorySummaryResult>
     queryCurrent(payload?: HextechAramMatchHistoryQuery): Promise<HextechAramMatchHistoryQueryResult>
+    openDetail(selection: MatchDetailSelection): Promise<OperationResult>
+    getDetailSnapshot(): Promise<MatchDetailSnapshotResult>
   }
   feedback: {
     submit(payload: FeedbackSubmissionPayload): Promise<FeedbackSubmissionResult>
   }
   lcu: {
+    getConnectionState(): Promise<LcuConnectionState>
     getChampionMonitorState(): Promise<ChampionMonitorState>
     getChampionId(): Promise<LcuChampionIdResult>
     getStatus(): Promise<LcuStatusResult>
