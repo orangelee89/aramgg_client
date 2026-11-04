@@ -16,8 +16,8 @@ const { anchorFromBounds, computeStripBounds, parseAnchor, pickLeagueClientWindo
 const client = { x: 408, y: 75, width: 1600, height: 900 }
 const size = { width: 600, height: 76 }
 
-function nativeWindow(title: string, width = 1600, height = 900, minimized = false) {
-  return { title: () => title, x: () => 0, y: () => 0, width: () => width, height: () => height, isMinimized: () => minimized }
+function nativeWindow(title: string, width = 1600, height = 900, minimized = false, appName = '') {
+  return { title: () => title, appName: () => appName, x: () => 0, y: () => 0, width: () => width, height: () => height, isMinimized: () => minimized }
 }
 
 describe('bench swap strip placement', () => {
@@ -43,7 +43,17 @@ describe('bench swap strip placement', () => {
     const game = nativeWindow('League of Legends (TM) Client')
     const minimized = nativeWindow('League of Legends', 1600, 900, true)
     const clientWindow = nativeWindow('League of Legends')
-    expect(pickLeagueClientWindow([game, minimized, clientWindow])).toBe(clientWindow)
-    expect(pickLeagueClientWindow([game, minimized])).toBeNull()
+    expect(pickLeagueClientWindow([game, minimized, clientWindow], 'win32')).toBe(clientWindow)
+    expect(pickLeagueClientWindow([game, minimized], 'win32')).toBeNull()
+  })
+
+  it('picks the 16:9 League client on macOS even without a readable title', () => {
+    const game = nativeWindow('', 1920, 1080, false, 'League of Legends (TM) Client')
+    const gameProcess = nativeWindow('', 1920, 1080, false, 'LeagueofLegends')
+    const chat = nativeWindow('', 800, 900, false, 'League of Legends')
+    const clientWindow = nativeWindow('', 1280, 720, false, 'LeagueClientUx')
+    const other = nativeWindow('Safari', 1600, 900, false, 'Safari')
+    expect(pickLeagueClientWindow([game, gameProcess, chat, other, clientWindow], 'darwin')).toBe(clientWindow)
+    expect(pickLeagueClientWindow([game, other], 'darwin')).toBeNull()
   })
 })

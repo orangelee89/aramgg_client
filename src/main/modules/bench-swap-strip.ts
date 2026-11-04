@@ -28,6 +28,7 @@ export interface StripAnchor { rx: number; ry: number }
 
 type NativeWindow = {
     title(): string
+    appName?(): string
     x(): number
     y(): number
     width(): number
@@ -70,7 +71,7 @@ export function refreshBenchSwapStrip(): void {
 }
 
 function shouldRun(): boolean {
-    return process.platform === 'win32' && phase === 'ChampSelect' && !dismissed && store.get('aram.benchNoCooldown') === true
+    return (process.platform === 'win32' || process.platform === 'darwin') && phase === 'ChampSelect' && !dismissed && store.get('aram.benchNoCooldown') === true
 }
 
 function stop(): void {
@@ -178,15 +179,43 @@ function sameBounds(a: Rectangle | null, b: Rectangle | null): boolean {
     return !!a && !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
 }
 
-/** 选人界面所在的 LeagueClientUx 窗口，标题固定为 "League of Legends"（游戏本体是 "... (TM) Client"）。 */
-export function pickLeagueClientWindow<T extends NativeWindow>(windows: T[]): T | null {
-    return windows.find((window) => {
+/**
+ * 选人界面所在的客户端窗口。
+ * Windows：LeagueClientUx 窗口标题固定为 "League of Legends"（游戏本体是 "... (TM) Client"）。
+ * macOS：窗口标题需要录屏权限才能读到，且客户端进程名不固定，所以按「名字像 LOL 客户端 + 16:9 + 不是游戏本体」挑最大的那个。
+ */
+export function pickLeagueClientWindow<T extends NativeWindow>(
+    windows: T[],
+    platform: NodeJS.Platform = process.platform,
+): T | null {
+    const usable = windows.filter((window) => {
         try {
-            return window.title() === 'League of Legends' && !window.isMinimized() && window.width() >= 640 && window.height() >= 360
+            return !window.isMinimized() && window.width() >= 640 && window.height() >= 360
         } catch {
             return false
         }
-    }) || null
+    })
+    if (platform !== 'darwin') {
+        return usable.find((window) => window.title() === 'League of Legends') || null
+    }
+
+    const candidates = usable.filter((window) => {
+        const title = safeText(() => window.title())
+        const appName = safeText(() => window.appName?.() || '')
+        const text = `${title} ${appName}`
+        if (/\(TM\)\s*Client/i.test(text) || /^LeagueofLegends$/i.test(appName)) return false
+        if (!/league\s*of\s*legends|leagueclient|英雄联盟|英雄聯盟/i.test(text)) return false
+        return Math.abs(window.width() / window.height() - 16 / 9) < 0.06
+    })
+    return candidates.sort((a, b) => b.width() * b.height() - a.width() * a.height())[0] || null
+}
+
+function safeText(read: () => string): string {
+    try {
+        return String(read() || '')
+    } catch {
+        return ''
+    }
 }
 
 function findLeagueClientRect(): Rectangle | null {
@@ -201,8 +230,10 @@ function findLeagueClientRect(): Rectangle | null {
     }
     const client = pickLeagueClientWindow(windows)
     if (!client) return null
-    // node-screenshots 在 Electron（Per-Monitor DPI aware）里返回物理像素，需要换算成 DIP。
-    return screen.screenToDipRect(null, { x: client.x(), y: client.y(), width: client.width(), height: client.height() })
+    const rect = { x: client.x(), y: client.y(), width: client.width(), height: client.height() }
+    // Windows：node-screenshots 在 Electron（Per-Monitor DPI aware）里返回物理像素，需要换算成 DIP。
+    // macOS：返回的已经是点坐标（和 Electron 一致），screenToDipRect 在 macOS 上也不可用。
+    return process.platform === 'win32' ? screen.screenToDipRect(null, rect) : rect
 }
 
 /** 测试用。 */
