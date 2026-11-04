@@ -57,7 +57,10 @@
                             current: candidate.isCurrent,
                             recommended: isRecommended(candidate),
                             teammate: candidate.source === 'teammate',
+                            swappable: canSwap(candidate),
                         }"
+                        :title="canSwap(candidate) ? t('teammateAnalysis.swapTitle', { name: candidate.name }) : undefined"
+                        @click="canSwap(candidate) && swapBenchChampion(candidate)"
                     >
                         <div class="champion-mark">
                             <img
@@ -82,12 +85,12 @@
                             </div>
                         </div>
                         <button
-                            v-if="benchSwapEnabled && candidate.source === 'bench'"
+                            v-if="canSwap(candidate)"
                             class="bench-swap-btn"
                             type="button"
                             :disabled="swappingChampionId != null"
                             :title="t('teammateAnalysis.swapTitle', { name: candidate.name })"
-                            @click="swapBenchChampion(candidate)"
+                            @click.stop="swapBenchChampion(candidate)"
                         >
                             <LoaderCircle v-if="swappingChampionId === candidate.championId" class="bench-swap-icon spinning" />
                             <span v-else>{{ t('teammateAnalysis.swap') }}</span>
@@ -187,6 +190,9 @@ const isChampSelect = computed(() => recommendation.value?.gameflowPhase === 'Ch
 const benchSwapEnabled = ref(false)
 const swappingChampionId = ref(null)
 const swapError = ref('')
+
+// 只有席位上的英雄能换；整张卡片和底部按钮都可点。
+const canSwap = (candidate) => benchSwapEnabled.value && candidate?.source === 'bench'
 
 const swapBenchChampion = async (candidate) => {
     if (!hasElectronAPI() || swappingChampionId.value != null) return
@@ -1087,6 +1093,21 @@ h3 {
 .bench-swap-btn:disabled {
     opacity: 0.6;
     cursor: wait;
+}
+
+.candidate-row.swappable {
+    cursor: pointer;
+    border-color: rgba(226, 192, 143, 0.45);
+}
+
+.candidate-row.swappable:hover {
+    background: rgba(194, 156, 109, 0.18);
+}
+
+.aram-panel.compact .bench-swap-btn {
+    width: 100%;
+    margin-left: 0;
+    align-self: stretch;
 }
 
 .bench-swap-icon {
