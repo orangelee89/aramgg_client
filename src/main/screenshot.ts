@@ -54,7 +54,7 @@ function checkScreenRecordingPermission(): void {
             screenCaptureAccessRequested = true
             requestMacScreenCaptureAccess()
         }
-        throw new Error('macOS Screen Recording permission is denied. Enable ARAMGG in System Settings > Privacy & Security > Screen Recording, then restart the app.')
+        throw new Error('macOS Screen Recording permission is denied. Enable 斑马小镇 in System Settings > Privacy & Security > Screen Recording, then restart the app.')
     }
 }
 

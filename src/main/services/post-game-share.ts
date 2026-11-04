@@ -1667,7 +1667,7 @@ export async function createMockPostGameSharePosterData(): Promise<{
     }
     const mockPlayers: SnapshotPlayer[] = [{
       key: 'name:aramgg玩家',
-      summonerName: 'ARAMGG玩家',
+      summonerName: '斑马小镇玩家',
       team: 'ORDER',
       isSelf: true,
       champion,
@@ -1714,7 +1714,7 @@ export async function createMockPostGameSharePosterData(): Promise<{
       gameMode: 'ARAM',
       queueName: 'ARAM',
       durationSeconds: 1128,
-      summonerName: 'ARAMGG玩家',
+      summonerName: '斑马小镇玩家',
       champion,
       stats: selfStats,
       augments,
