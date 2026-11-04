@@ -148,7 +148,7 @@ const itemSetPreloadDataByChampionId = new Map()
  */
 export async function init({ startBackgroundServices = true } = {}) {
     logger.info(`${'='.repeat(50)}`)
-    logger.info(`ARAMGG助手启动中...`)
+    logger.info(`斑马小镇启动中...`)
     logger.info(`${'='.repeat(50)}`)
 
     // 设置应用菜单为空

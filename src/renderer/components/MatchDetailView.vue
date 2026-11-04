@@ -45,7 +45,7 @@ onMounted(async () => {
     if (result.success && result.data) {
       setAppLocale(result.data.locale)
       snapshot.value = result.data
-      document.title = `${t('matchDetail.title')} · #${result.data.match.gameId} · ARAMGG`
+      document.title = `${t('matchDetail.title')} · #${result.data.match.gameId} · 斑马小镇`
     }
   } catch {
     snapshot.value = null

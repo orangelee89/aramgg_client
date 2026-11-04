@@ -107,7 +107,8 @@
       ],
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "aramgg_banma_city"
+      "shortcutName": "斑马小镇",
+      "uninstallDisplayName": "斑马小镇"
     },
     "mac": {
       "category": "public.app-category.games",
@@ -141,7 +142,8 @@
         }
       ],
       "extendInfo": {
-        "NSScreenCaptureUsageDescription": "ARAMGG 需要截取游戏画面来识别海克斯卡片。"
+        "CFBundleDisplayName": "斑马小镇",
+        "NSScreenCaptureUsageDescription": "斑马小镇 需要截取游戏画面来识别海克斯卡片。"
       }
     },
     "dmg": {

@@ -659,7 +659,7 @@ export const createMainWindow = async (
         ...bounds,
         frame: false,
         webPreferences,
-        title: 'ARAMGG助手',
+        title: '斑马小镇',
     })
     const window = mainWindow
     attachWindowDiagnostics('main', window)
@@ -1062,7 +1062,7 @@ async function createMatchDetailWindow(key: string, snapshot: OwnedMatchDetailSn
     const window = new BrowserWindow({
         ...bounds, minWidth: Math.min(360, bounds.width), minHeight: Math.min(400, bounds.height),
         show: false, frame: true, resizable: true, fullscreenable: false,
-        backgroundColor: '#0a1015', title: 'ARAMGG', webPreferences,
+        backgroundColor: '#0a1015', title: '斑马小镇', webPreferences,
     })
     const contents = window.webContents
     matchDetailWindows.set(key, window)

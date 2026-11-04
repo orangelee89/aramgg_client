@@ -11,7 +11,7 @@ import {
 
 let tray: Tray | null = null
 
-const TRAY_TOOLTIP = 'ARAMGG助手'
+const TRAY_TOOLTIP = '斑马小镇'
 
 function uniqueExistingPaths(paths: string[]) {
     const seen = new Set<string>()
