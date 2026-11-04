@@ -74,6 +74,7 @@ vi.mock('../../src/main/services/post-game-share.ts', () => ({
 vi.mock('../../src/main/modules/app-paths.ts', () => ({ getAppDataDir: () => '/tmp/isolated-monitor-test' }))
 vi.mock('../../src/main/modules/diagnostic-logger.ts', () => ({ logDiagnosticSnapshot: vi.fn(async () => {}) }))
 vi.mock('../../src/main/modules/performance-monitor.ts', () => ({ startPerformanceMonitor: vi.fn() }))
+vi.mock('../../src/main/modules/bench-swap-strip.ts', () => ({ configureBenchSwapStrip: vi.fn(), setBenchSwapStripPhase: vi.fn() }))
 vi.mock('../../src/main/modules/tray.ts', () => ({ createAppTray: vi.fn() }))
 vi.mock('../../src/main/modules/user-preferences.ts', () => ({
   shouldShowChampionDetails: () => true,

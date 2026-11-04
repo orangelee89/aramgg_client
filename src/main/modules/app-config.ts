@@ -22,6 +22,7 @@ import {
     allowMainWindowClose,
 } from './window-manager.ts'
 import { showPostGamePosterPopup } from './post-game-poster-window.ts'
+import { configureBenchSwapStrip, setBenchSwapStripPhase } from './bench-swap-strip.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import {
@@ -1198,6 +1199,12 @@ async function initGameFlowMonitor() {
         }
 
         const gameSessionCoordinator = new GameSessionCoordinator()
+        configureBenchSwapStrip({
+            hasBench: async () => {
+                const snapshot = await lcuService.getChampSelectSnapshot()
+                return snapshot?.isInChampSelect !== false && snapshot?.benchEnabled === true
+            },
+        })
         let lastTokenRefreshAt = Date.now()
         let websocketConnected = false
         let websocketLastEventAt = 0
@@ -1223,6 +1230,7 @@ async function initGameFlowMonitor() {
                 const currentPhase = transition.current.phase
                 logger.info(`游戏阶段变化(${source}): ${prevPhase || 'unknown'} → ${phase}`)
                 notifyAllWindows('game-phase-changed', { phase: currentPhase, prevPhase })
+                setBenchSwapStripPhase(currentPhase)
                 clearAugmentOverlayForPhase(currentPhase)
                 void logReadOnlyGameApiDiagnostics(lcuService, currentPhase, `phase-change:${source}`, true)
                 if (currentPhase === 'Lobby' || currentPhase === 'None') {
