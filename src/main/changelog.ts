@@ -13,6 +13,16 @@ const SUMMARY_TEXT_LIMIT = 220
 
 export const LOCAL_CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    version: '0.0.4',
+    date: '2026-11-04',
+    title: '改名斑马小镇',
+    summary: '助手显示名改为「斑马小镇」；席位换人条支持 macOS。',
+    changes: [
+      '界面、托盘、窗口标题、赛后海报和桌面快捷方式统一显示为「斑马小镇」。',
+      '席位换人条支持 macOS。',
+    ],
+  },
+  {
     version: '0.0.3',
     date: '2026-11-04',
     title: '席位换人条',
