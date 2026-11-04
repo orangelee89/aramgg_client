@@ -184,6 +184,11 @@ const router = createRouter({
       component: () => import('./components/PostGamePosterWindowView.vue'),
     },
     {
+      path: '/bench-swap-strip',
+      name: 'BenchSwapStrip',
+      component: () => import('./components/BenchSwapStripView.vue'),
+    },
+    {
       path: '/augment-side-panel',
       name: 'AugmentSidePanel',
       component: () => import('./components/AugmentSidePanelView.vue'),

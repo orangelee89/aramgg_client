@@ -17,6 +17,7 @@ import store from '../modules/app-store.ts'
 import logger from '../modules/logger.ts'
 import { applyPopupWindowPreferences, closeMatchDetailWindows, notifyAllWindows, setPopupPresentation } from '../modules/window-manager.ts'
 import { showCurrentChampionGuide } from '../modules/champion-guide.ts'
+import { refreshBenchSwapStrip } from '../modules/bench-swap-strip.ts'
 import { trustedIpcMain as ipcMain } from '../security/trusted-ipc.ts'
 import { matchDetailSnapshots } from '../services/match-history/match-detail-snapshots.ts'
 
@@ -93,6 +94,7 @@ export function registerPreferencesIpcHandlers(): void {
     }
     if (key === 'aram.teammateAnalysis' || key === 'aram.benchNoCooldown') {
       notifyAllWindows('aram-preferences-changed', { key, value: Boolean(value) })
+      if (key === 'aram.benchNoCooldown') refreshBenchSwapStrip()
     }
   })
 

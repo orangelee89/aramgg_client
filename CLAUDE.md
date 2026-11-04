@@ -64,7 +64,7 @@ node tests/electron/test-augment-ocr-fixtures.js
 - manifest 逻辑路径和资源 URL 统一走 `src/shared/client-data-security.ts`，禁止把远端路径直接拼接到可写目录；额外数据 origin 只允许显式 HTTPS，开发 localhost HTTP 除外。
 - 远端配置只能提出更新 feed，不能扩展内置 feed origin 或 Windows 发布者信任根；生产 origin、证书 CN 和签名安装包未共同验收前，自动更新保持关闭。
 - LCU 选人推荐链路只能读状态和统计数据，不得调用 `pickOrBan`、`benchSwap`、`action`、`acceptTrade`、`declineTrade` 等会改变选人结果的接口。
-  - fork 例外（用户明确要求，风险自负）：「大乱斗无CD换英雄」开关打开后，用户在席位推荐里点「换」才调用 `POST /lol-champ-select/v1/session/bench/swap/{id}`（IPC `lcu-aram-bench-swap`，主进程会再校验开关）。推荐逻辑本身仍不得自动执行任何选人写操作。
+  - fork 例外（用户明确要求，风险自负）：「大乱斗无CD换英雄」开关打开后，用户在席位推荐里点「换」或在席位换人条（`src/main/modules/bench-swap-strip.ts` + `/bench-swap-strip`，选人时浮在客户端席位栏上方）里点头像才调用 `POST /lol-champ-select/v1/session/bench/swap/{id}`（IPC `lcu-aram-bench-swap`，主进程会再校验开关）。推荐逻辑本身仍不得自动执行任何选人写操作。
   - 「牛马检测器」（`src/main/services/aram/teammate-analysis.ts`，评分算法移植自 WJZ-P/sona）只读：用 SGP 查队友战绩，不发聊天，不还原匿名选人身份。
 - 现有符文页写入能力只服务符文功能，不能被 ARAM bench 推荐复用成自动操作。
 

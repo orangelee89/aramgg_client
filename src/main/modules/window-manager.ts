@@ -61,6 +61,7 @@ let popupRequestedVisible = false
 let floatingWindow: BrowserWindow | null = null
 let augmentSidePanelWindow: BrowserWindow | null = null
 let postGamePosterWindow: BrowserWindow | null = null
+let benchSwapStripWindow: BrowserWindow | null = null
 let appQuitting = false
 let quitListenerRegistered = false
 let mainWindowCloseAllowed = false
@@ -950,6 +951,73 @@ export const getFloatingWindow = () => floatingWindow
 export const getAugmentSidePanelWindow = () => augmentSidePanelWindow
 
 export const getPostGamePosterWindow = () => postGamePosterWindow
+export const getBenchSwapStripWindow = () => benchSwapStripWindow
+
+/**
+ * 大乱斗席位换人条：无边框、置顶、不抢焦点的小条，由 bench-swap-strip.ts 按 LOL 客户端位置摆放。
+ * 关闭只隐藏；拖动后由控制器记住相对客户端的位置。
+ */
+export const createBenchSwapStripWindow = async (
+    isDev: boolean,
+    devServerUrl: string
+): Promise<BrowserWindow> => {
+    const webPreferences = getWebPreferences(isDev)
+
+    if (!quitListenerRegistered && typeof app.on === 'function') {
+        quitListenerRegistered = true
+        app.on('before-quit', () => {
+            appQuitting = true
+        })
+    }
+
+    benchSwapStripWindow = new BrowserWindow({
+        show: false,
+        frame: false,
+        transparent: true,
+        skipTaskbar: true,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        focusable: true,
+        alwaysOnTop: true,
+        hasShadow: false,
+        width: 600,
+        height: 76,
+        webPreferences,
+    })
+    setOverlayAlwaysOnTop(benchSwapStripWindow, true, 'bench-swap-strip')
+    attachWindowDiagnostics('bench-swap-strip', benchSwapStripWindow)
+
+    benchSwapStripWindow.on('close', (event: Event) => {
+        if (!appQuitting) {
+            event.preventDefault()
+            benchSwapStripWindow?.hide()
+        }
+    })
+    benchSwapStripWindow.on('closed', () => {
+        benchSwapStripWindow = null
+    })
+
+    await loadRendererRoute(benchSwapStripWindow, 'bench-swap-strip', isDev, devServerUrl, '/bench-swap-strip', webPreferences.preload)
+    logger.info('席位换人条窗口已创建')
+    return benchSwapStripWindow
+}
+
+export function showBenchSwapStripWindow(): void {
+    if (!benchSwapStripWindow || benchSwapStripWindow.isDestroyed()) return
+    setOverlayAlwaysOnTop(benchSwapStripWindow, true, 'bench-swap-strip')
+    if (!benchSwapStripWindow.isVisible()) {
+        benchSwapStripWindow.showInactive()
+    }
+    benchSwapStripWindow.moveTop()
+}
+
+export function hideBenchSwapStripWindow(): void {
+    if (benchSwapStripWindow && !benchSwapStripWindow.isDestroyed() && benchSwapStripWindow.isVisible()) {
+        benchSwapStripWindow.hide()
+    }
+}
 export function getMatchDetailWindowBounds(area: Rectangle): Rectangle {
     const width = Math.max(1, Math.min(1200, area.width))
     const height = Math.max(1, Math.min(840, area.height))
@@ -1035,6 +1103,10 @@ export const ensureAugmentSidePanelWindow = createWindowLoader(
 export const ensurePostGamePosterWindow = createWindowLoader(
     getPostGamePosterWindow,
     () => createPostGamePosterWindow(...getRendererRuntime()),
+)
+export const ensureBenchSwapStripWindow = createWindowLoader(
+    getBenchSwapStripWindow,
+    () => createBenchSwapStripWindow(...getRendererRuntime()),
 )
 
 export function ensureAugmentOverlayWindows(): Promise<[BrowserWindow | null, BrowserWindow | null]> {
