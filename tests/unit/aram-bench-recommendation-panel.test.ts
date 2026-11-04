@@ -37,7 +37,8 @@ afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.useRealTimers() })
 function render(data: AramBenchRecommendation | null, locale = 'zh-CN') {
   wrapper = mount(AramBenchRecommendationPanel, {
     props: { compact: true, previewRecommendation: data },
-    global: { plugins: [createI18n({ legacy: false, locale, messages })] },
+    // 牛马检测器（fork 新增）有独立测试，这里只验证席位推荐本身。
+    global: { plugins: [createI18n({ legacy: false, locale, messages })], stubs: { TeammateStrengthPanel: true } },
   })
   return wrapper
 }
@@ -186,7 +187,8 @@ describe('ARAM recommendation panel', () => {
     expect(lcuWrite).not.toHaveBeenCalled()
     view.unmount()
     wrapper = undefined
-    expect(unsubscribe).toHaveBeenCalledTimes(2)
+    // game-phase-changed、bench-recommendation-preview，以及 fork 的 aram-preferences-changed
+    expect(unsubscribe).toHaveBeenCalledTimes(3)
     await vi.advanceTimersByTimeAsync(6_000)
     expect(getRecommendation).toHaveBeenCalledTimes(2)
   })

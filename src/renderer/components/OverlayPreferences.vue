@@ -144,6 +144,20 @@ const preferenceDefinitions = [
     titleKey: 'preferences.postGamePopupTitle',
     descriptionKey: 'preferences.postGamePopupDescription',
   },
+  {
+    key: 'aramTeammateAnalysis',
+    storeKey: 'aram.teammateAnalysis',
+    defaultValue: true,
+    titleKey: 'preferences.teammateAnalysisTitle',
+    descriptionKey: 'preferences.teammateAnalysisDescription',
+  },
+  {
+    key: 'aramBenchNoCooldown',
+    storeKey: 'aram.benchNoCooldown',
+    defaultValue: false,
+    titleKey: 'preferences.benchNoCooldownTitle',
+    descriptionKey: 'preferences.benchNoCooldownDescription',
+  },
 ]
 
 const preferenceItems = computed(() => preferenceDefinitions.map(item => ({

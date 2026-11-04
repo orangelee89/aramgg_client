@@ -16,6 +16,8 @@ export type AppStoreKey =
   | 'postGameShare.autoShow'
   | 'postGameShare.comparePlayers'
   | 'postGameShare.popupWindow'
+  | 'aram.teammateAnalysis'
+  | 'aram.benchNoCooldown'
 
 export type SupportedDataLocale = 'zh-CN' | 'zh-TW' | 'en-US'
 
@@ -391,6 +393,48 @@ export interface LcuRecommendationResult extends OperationResult {
   recommendation: AramBenchRecommendation
 }
 
+/** 牛马检测器：按队内综合评分排名的称号，没有战绩的是 newbie。 */
+export type TeammateHorseTitle = 'ace' | 'high' | 'mid' | 'low' | 'burden' | 'newbie'
+
+export interface TeammateAnalysisPlayer {
+  floor: number
+  cellId: number
+  puuid: string
+  gameName: string
+  tagLine: string
+  championId: number
+  isSelf: boolean
+  /** ok 有战绩；empty 本模式近期无战绩；hidden 匿名选人拿不到身份；error 查询失败 */
+  status: 'ok' | 'empty' | 'hidden' | 'error'
+  games: number
+  wins: number
+  winRate: number | null
+  avgKills: number
+  avgDeaths: number
+  avgAssists: number
+  kda: number | null
+  /** 3.0 - 16.0 综合评分 */
+  score: number | null
+  grade: 'legendary' | 'carry' | 'strong' | 'reliable' | 'balanced' | 'unstable' | 'risky' | 'critical' | null
+  lowConfidence: boolean
+  title: TeammateHorseTitle
+  error: string | null
+}
+
+export interface TeammateAnalysis {
+  status: 'ready' | 'not-in-champ-select' | 'disabled' | 'unavailable' | 'error'
+  gameId: number | null
+  queueId: number | null
+  fetchCount: number
+  players: TeammateAnalysisPlayer[]
+  error: string | null
+  updatedAt: number
+}
+
+export interface LcuTeammateAnalysisResult extends OperationResult {
+  analysis: TeammateAnalysis
+}
+
 export interface LcuPerkListResult extends OperationResult {
   perks: PerkPage[]
 }
@@ -486,6 +530,7 @@ export interface ElectronEventMap {
   'locale-changed': [payload: LocaleChangedPayload]
   'match-history-updated': [payload: MatchHistoryUpdatedPayload]
   'augment-highlight-mode-changed': [payload: AugmentHighlightModeChangedPayload]
+  'aram-preferences-changed': [payload: { key: 'aram.teammateAnalysis' | 'aram.benchNoCooldown'; value: boolean }]
 }
 
 export type ElectronEventChannel = keyof ElectronEventMap
@@ -568,6 +613,8 @@ export interface ElectronAPI {
     getCurrentSession(): Promise<LcuSessionResult>
     getChampSelectSnapshot(): Promise<LcuSnapshotResult>
     getAramBenchRecommendation(): Promise<LcuRecommendationResult>
+    getTeammateAnalysis(): Promise<LcuTeammateAnalysisResult>
+    benchSwap(championId: number): Promise<OperationResult>
     getPerkList(): Promise<LcuPerkListResult>
     applyPerk(data: LooseRecord): Promise<OperationResult>
     getGameflowPhase(): Promise<LcuGameflowResult>

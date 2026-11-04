@@ -17,6 +17,8 @@ import {
 } from '../aram/bench-recommendation.ts'
 import { trustedIpcMain as ipcMain } from '../../security/trusted-ipc.ts'
 import { loadChampionStatsForRecommendation } from '../aram/bench-recommendation-data.ts'
+import { createEmptyTeammateAnalysis, getTeammateAnalysis } from '../aram/teammate-analysis.ts'
+import store from '../../modules/app-store.ts'
 
 const LCU_READ_TIMEOUT_MS = 8 * 1000
 let lastAramBenchRecommendationLogSignature = ''
@@ -114,6 +116,42 @@ export function registerLCUIpcHandlers(): void {
       snapshot,
       error: snapshot.status === 'ready' ? null : snapshot.reason,
     }
+  })
+
+  ipcMain.handle('lcu-get-teammate-analysis', async () => {
+    if (store.get('aram.teammateAnalysis') === false) {
+      return { success: true, analysis: createEmptyTeammateAnalysis('disabled') }
+    }
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service.isActive()) {
+      return { success: true, analysis: createEmptyTeammateAnalysis('unavailable', error), error }
+    }
+    try {
+      const snapshot = await withTimeout(
+        service.getChampSelectSnapshot(),
+        LCU_READ_TIMEOUT_MS,
+        `LCU 选人快照读取超过 ${LCU_READ_TIMEOUT_MS / 1000} 秒`
+      )
+      const analysis = await getTeammateAnalysis(service, snapshot)
+      return { success: analysis.status !== 'error', analysis, error: analysis.error }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return { success: false, analysis: createEmptyTeammateAnalysis('error', message), error: message }
+    }
+  })
+
+  ipcMain.handle('lcu-aram-bench-swap', async (_event, championId: unknown) => {
+    if (store.get('aram.benchNoCooldown') !== true) {
+      return { success: false, error: '未开启「大乱斗无CD换英雄」' }
+    }
+    const id = Number(championId)
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service.isActive()) {
+      return { success: false, error: error || 'LCU 未连接' }
+    }
+    const result = await service.benchSwap(id)
+    logger.info('[LCU] ARAM bench swap', { championId: id, success: result.success, status: result.status ?? null })
+    return result
   })
 
   ipcMain.handle('lcu-get-aram-bench-recommendation', async () => {

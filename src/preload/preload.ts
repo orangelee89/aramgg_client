@@ -30,6 +30,7 @@ const validEvents = new Set<ElectronEventChannel>([
   'locale-changed',
   'match-history-updated',
   'augment-highlight-mode-changed',
+  'aram-preferences-changed',
 ])
 
 function assertValidEvent(channel: string): asserts channel is ElectronEventChannel {
@@ -140,6 +141,8 @@ const electronAPI: ElectronAPI = {
     getCurrentSession: () => ipcRenderer.invoke('lcu-get-current-session'),
     getChampSelectSnapshot: () => ipcRenderer.invoke('lcu-get-champ-select-snapshot'),
     getAramBenchRecommendation: () => ipcRenderer.invoke('lcu-get-aram-bench-recommendation'),
+    getTeammateAnalysis: () => ipcRenderer.invoke('lcu-get-teammate-analysis'),
+    benchSwap: (championId) => ipcRenderer.invoke('lcu-aram-bench-swap', championId),
     getPerkList: () => ipcRenderer.invoke('lcu-get-perk-list'),
     applyPerk: (data) => ipcRenderer.invoke('lcu-apply-perk', data),
     getGameflowPhase: () => ipcRenderer.invoke('lcu-get-gameflow-phase'),

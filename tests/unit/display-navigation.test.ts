@@ -122,7 +122,7 @@ describe('main window sections', () => {
     await flushPromises()
     const home = view.get('#main-panel-home')
     expect(view.get('[data-connection]').attributes('data-connection')).toBe('disconnected')
-    expect(home.findAll('[role="switch"]')).toHaveLength(8) // fork 多一个「赛后海报弹在屏幕右下角」开关
+    expect(home.findAll('[role="switch"]')).toHaveLength(10) // fork 多了赛后海报右下角、牛马检测器、大乱斗无CD换英雄 3 个开关
     expect(home.find('.header-locale-trigger').exists()).toBe(true)
     for (const text of ['赛后海报', '窗口预览', '海克斯浮窗', '英雄详情', '数据探测', '反馈建议', '更新日志', '日志目录']) {
       expect(home.text()).toContain(text)
