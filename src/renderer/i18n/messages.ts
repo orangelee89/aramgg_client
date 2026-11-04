@@ -5,6 +5,7 @@ import { matchDetailMessages } from './match-detail.ts'
 import { championRankingsMessages } from './champion-rankings.ts'
 import { mainNavigationMessages } from './main-navigation.ts'
 import { patchEvidenceMessages } from './patch-evidence.ts'
+import { teammateAnalysisMessages } from './teammate-analysis.ts'
 
 export const messages = {
   'zh-CN': {
@@ -13,6 +14,7 @@ export const messages = {
     championRankings: championRankingsMessages['zh-CN'],
     matchAnalysis: matchAnalysisMessages['zh-CN'],
     matchDetail: matchDetailMessages['zh-CN'],
+    teammateAnalysis: teammateAnalysisMessages['zh-CN'],
     common: {
       cancel: '取消',
       close: '关闭',
@@ -146,6 +148,10 @@ export const messages = {
       postGameShareDescription: '游戏结束后自动打开赛后海报；关闭后仍可在主页面手动生成和查看。',
       postGamePopupTitle: '赛后海报弹在屏幕右下角',
       postGamePopupDescription: '以独立小窗显示在屏幕右下角，不呼出助手主窗口；关闭后改为在主窗口内打开。',
+      teammateAnalysisTitle: '牛马检测器',
+      teammateAnalysisDescription: '选人时查询队友本模式近期战绩，按综合评分给出千里马～纯牛马，只在英雄详情窗口里显示。',
+      benchNoCooldownTitle: '大乱斗无CD换英雄',
+      benchNoCooldownDescription: '在英雄详情窗口的席位推荐里点「换」，直接换成席位英雄，不用等冷却。会调用客户端选人接口，风险自负。',
       highlightModeTitle: '高亮计算方式',
       highlightModeDescription: '三张海克斯卡里高亮哪一张。',
       highlightModes: { pickRate: '选取率', winRate: '胜率', weighted: '加权计算' },
@@ -436,6 +442,7 @@ export const messages = {
     championRankings: championRankingsMessages['en-US'],
     matchAnalysis: matchAnalysisMessages['en-US'],
     matchDetail: matchDetailMessages['en-US'],
+    teammateAnalysis: teammateAnalysisMessages['en-US'],
     common: {
       cancel: 'Cancel', close: 'Close', current: 'Current', exit: 'Exit', hide: 'Hide', loading: 'Loading...', minimize: 'Minimize', refresh: 'Refresh', unknown: 'Unknown', unknownError: 'Unknown error',
     },
@@ -449,7 +456,7 @@ export const messages = {
     preferences: {
       title: 'WINDOW PREFERENCES', fullscreenTitle: 'Fullscreen display', fullscreenDescription: 'The augment overlay is an always-on-top desktop window and may be hidden by exclusive fullscreen. Use borderless or windowed mode when you need the overlay.', championDetailsTitle: 'Show champion details', championDetailsDescription: 'Show the separate Champion Details window during champion select or champion changes. Champion monitoring and other background features remain active when disabled.',
       hideDetailsTitle: 'Close champion details in game', hideDetailsDescription: 'Hide champion details when loading or entering a game. Disabling this immediately restores the current champion guide. Use the setting below to keep it on top.',
-      alwaysOnTopTitle: 'Keep champion details on top', alwaysOnTopDescription: 'Keep champion details above other windows. Changes take effect immediately. The window still hides in game when the close-in-game setting is enabled.', topOverlayTitle: 'Show the top augment overlay', topOverlayDescription: 'Show three augment recommendations at the top of the screen when an augment choice is detected.', sidePanelTitle: 'Show the right recommendation panel', sidePanelDescription: 'Show augment and build recommendations on the right side of the game when an augment choice is detected.', postGameShareTitle: 'Automatically show the post-game poster', postGameShareDescription: 'Open the poster automatically after a match. When disabled, it remains available from the main window.', postGamePopupTitle: 'Show the post-game poster in a corner window', postGamePopupDescription: 'Show the poster in a small window at the bottom-right of the screen without bringing up the main window. When disabled, it opens inside the main window.',
+      alwaysOnTopTitle: 'Keep champion details on top', alwaysOnTopDescription: 'Keep champion details above other windows. Changes take effect immediately. The window still hides in game when the close-in-game setting is enabled.', topOverlayTitle: 'Show the top augment overlay', topOverlayDescription: 'Show three augment recommendations at the top of the screen when an augment choice is detected.', sidePanelTitle: 'Show the right recommendation panel', sidePanelDescription: 'Show augment and build recommendations on the right side of the game when an augment choice is detected.', postGameShareTitle: 'Automatically show the post-game poster', postGameShareDescription: 'Open the poster automatically after a match. When disabled, it remains available from the main window.', postGamePopupTitle: 'Show the post-game poster in a corner window', postGamePopupDescription: 'Show the poster in a small window at the bottom-right of the screen without bringing up the main window. When disabled, it opens inside the main window.', teammateAnalysisTitle: 'Teammate check', teammateAnalysisDescription: 'In champion select, look up teammates’ recent games in this mode and rank them. Shown only in the champion details window.', benchNoCooldownTitle: 'ARAM swap without cooldown', benchNoCooldownDescription: 'Use the Swap button in bench recommendations to take a bench champion immediately. Calls the client champ-select API; use at your own risk.',
       highlightModeTitle: 'Highlight method', highlightModeDescription: 'Which of the three augment cards gets highlighted.',
       highlightModes: { pickRate: 'Pick rate', winRate: 'Win rate', weighted: 'Weighted' },
       highlightModeHints: { pickRate: 'Highlights the most-picked card by CN per-champion pick-rate rank.', winRate: 'Highlights the card with the highest win rate for this champion; falls back to pick rate when none has a win rate.', weighted: 'Win rate × 0.6 + pick rate × 0.2 + games weight × 0.2; falls back to pick rate when none has a win rate.' },
@@ -495,6 +502,7 @@ export const messages = {
     championRankings: championRankingsMessages['zh-TW'],
     matchAnalysis: matchAnalysisMessages['zh-TW'],
     matchDetail: matchDetailMessages['zh-TW'],
+    teammateAnalysis: teammateAnalysisMessages['zh-TW'],
     common: {
       cancel: '取消', close: '關閉', current: '目前', exit: '退出', hide: '隱藏', loading: '載入中...', minimize: '最小化', refresh: '重新整理', unknown: '未知', unknownError: '未知錯誤',
     },
@@ -508,7 +516,7 @@ export const messages = {
     preferences: {
       title: '視窗偏好', fullscreenTitle: '全螢幕顯示說明', fullscreenDescription: '增幅裝置浮窗是桌面置頂視窗，獨佔全螢幕可能會遮擋它；需要顯示浮窗時，請將英雄聯盟影片設定切換為無邊框或視窗化。', championDetailsTitle: '顯示英雄詳情', championDetailsDescription: '選角或英雄變化時顯示獨立的英雄詳情視窗；關閉後仍保持英雄監控與其他後台功能。',
       hideDetailsTitle: '進入遊戲時關閉英雄詳情頁', hideDetailsDescription: '載入或進入遊戲時自動隱藏英雄詳情；關閉後立即恢復目前英雄攻略，是否置頂由下方開關控制。',
-      alwaysOnTopTitle: '英雄詳情強制置頂', alwaysOnTopDescription: '讓英雄詳情保持在其他視窗上方，切換後立即生效；開啟「進入遊戲時關閉英雄詳情頁」時仍會自動隱藏。', topOverlayTitle: '顯示頂部增幅裝置浮窗', topOverlayDescription: '辨識到增幅裝置選擇時，在螢幕頂部顯示三張推薦。', sidePanelTitle: '顯示右側推薦清單', sidePanelDescription: '辨識到增幅裝置選擇時，在遊戲右側顯示增幅裝置與出裝推薦清單。', postGameShareTitle: '自動顯示賽後海報', postGameShareDescription: '遊戲結束後自動開啟賽後海報；關閉後仍可在主頁面手動產生和查看。', postGamePopupTitle: '賽後海報彈在螢幕右下角', postGamePopupDescription: '以獨立小視窗顯示在螢幕右下角，不喚出助手主視窗；關閉後改為在主視窗內開啟。',
+      alwaysOnTopTitle: '英雄詳情強制置頂', alwaysOnTopDescription: '讓英雄詳情保持在其他視窗上方，切換後立即生效；開啟「進入遊戲時關閉英雄詳情頁」時仍會自動隱藏。', topOverlayTitle: '顯示頂部增幅裝置浮窗', topOverlayDescription: '辨識到增幅裝置選擇時，在螢幕頂部顯示三張推薦。', sidePanelTitle: '顯示右側推薦清單', sidePanelDescription: '辨識到增幅裝置選擇時，在遊戲右側顯示增幅裝置與出裝推薦清單。', postGameShareTitle: '自動顯示賽後海報', postGameShareDescription: '遊戲結束後自動開啟賽後海報；關閉後仍可在主頁面手動產生和查看。', postGamePopupTitle: '賽後海報彈在螢幕右下角', postGamePopupDescription: '以獨立小視窗顯示在螢幕右下角，不喚出助手主視窗；關閉後改為在主視窗內開啟。', teammateAnalysisTitle: '牛馬檢測器', teammateAnalysisDescription: '選角時查詢隊友本模式近期戰績，依綜合評分給出千里馬～純牛馬，只在英雄詳情視窗中顯示。', benchNoCooldownTitle: '大亂鬥無CD換英雄', benchNoCooldownDescription: '在英雄詳情視窗的席位推薦中點「換」，直接換成席位英雄，不用等冷卻。會呼叫客戶端選角介面，風險自負。',
       highlightModeTitle: '高亮計算方式', highlightModeDescription: '三張增幅裝置卡中高亮哪一張。',
       highlightModes: { pickRate: '選取率', winRate: '勝率', weighted: '加權計算' },
       highlightModeHints: { pickRate: '依國服單英雄選取率排名，最常被選的高亮。', winRate: '依本英雄 × 該增幅裝置勝率，最高的高亮；三張都沒有勝率時依選取率。', weighted: '勝率 × 0.6 + 選取率 × 0.2 + 場次權重 × 0.2，最高的高亮；三張都沒有勝率時依選取率。' },

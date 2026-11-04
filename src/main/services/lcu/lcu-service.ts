@@ -901,6 +901,40 @@ export class LCUService {
   }
 
   /**
+   * 大乱斗席位换英雄：把自己当前英雄放回席位，换取席位上的指定英雄。
+   * 直接调用客户端接口，不受客户端界面上的换英雄冷却限制（参考 WJZ-P/sona 的 benchSwap）。
+   * 这是 fork 加入的选人写操作，只在用户打开「大乱斗无CD换英雄」后由界面点击触发。
+   */
+  async benchSwap(championId: number): Promise<{ success: boolean; status?: number; error?: string }> {
+    if (!Number.isInteger(championId) || championId <= 0) {
+      return { success: false, error: '无效的英雄 ID' }
+    }
+    if (!this.active || !this.url) {
+      await this.getAuthToken()
+    }
+    if (!this.active || !this.url || !this.auth) {
+      return { success: false, error: 'LCU 未连接' }
+    }
+
+    try {
+      const res = await axios.post(`${this.url}/lol-champ-select/v1/session/bench/swap/${championId}`, null, {
+        ...this.auth,
+        httpsAgent: this.httpsAgent,
+        proxy: false,
+        timeout: 4000,
+        validateStatus: () => true,
+      })
+      if (res.status >= 200 && res.status < 300) {
+        return { success: true, status: res.status }
+      }
+      const message = typeof res.data?.message === 'string' ? res.data.message : `HTTP ${res.status}`
+      return { success: false, status: res.status, error: message }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  /**
    * 获取最近一次选人快照缓存。不会访问 LCU。
    */
   getCachedChampSelectSnapshot(): ChampSelectSnapshot {

@@ -81,6 +81,17 @@
                                 <div>{{ t('bench.tier', { value: formatTier(candidate.tier) }) }}</div>
                             </div>
                         </div>
+                        <button
+                            v-if="benchSwapEnabled && candidate.source === 'bench'"
+                            class="bench-swap-btn"
+                            type="button"
+                            :disabled="swappingChampionId != null"
+                            :title="t('teammateAnalysis.swapTitle', { name: candidate.name })"
+                            @click="swapBenchChampion(candidate)"
+                        >
+                            <LoaderCircle v-if="swappingChampionId === candidate.championId" class="bench-swap-icon spinning" />
+                            <span v-else>{{ t('teammateAnalysis.swap') }}</span>
+                        </button>
                     </article>
                 </div>
             </div>
@@ -122,6 +133,8 @@
                     </button>
                 </div>
             </div>
+            <p v-if="swapError" class="data-warning">{{ swapError }}</p>
+            <TeammateStrengthPanel :active="isChampSelect" />
         </div>
     </section>
 </template>
@@ -139,6 +152,7 @@ import {
 } from 'lucide-vue-next'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { useI18n } from 'vue-i18n'
+import TeammateStrengthPanel from './TeammateStrengthPanel.vue'
 
 const props = defineProps({
     compact: {
@@ -168,6 +182,28 @@ let mounted = false
 let candidateResizeObserver = null
 
 const isChampSelect = computed(() => recommendation.value?.gameflowPhase === 'ChampSelect')
+
+// 大乱斗无 CD 换英雄：在设置里打开后，席位英雄旁出现「换」按钮，直接调用客户端换英雄接口。
+const benchSwapEnabled = ref(false)
+const swappingChampionId = ref(null)
+const swapError = ref('')
+
+const swapBenchChampion = async (candidate) => {
+    if (!hasElectronAPI() || swappingChampionId.value != null) return
+    swappingChampionId.value = candidate.championId
+    swapError.value = ''
+    try {
+        const result = await electronAPI.lcu.benchSwap(candidate.championId)
+        if (!result?.success) {
+            swapError.value = t('teammateAnalysis.swapFailed', { error: result?.error || '' })
+        }
+    } catch (err) {
+        swapError.value = t('teammateAnalysis.swapFailed', { error: err?.message || String(err) })
+    } finally {
+        swappingChampionId.value = null
+        refresh(false)
+    }
+}
 
 const statusClass = computed(() => {
     const status = recommendation.value?.status
@@ -415,6 +451,12 @@ onMounted(() => {
         }))
 
         unsubscribeEvents.push(electronAPI.events.on('game-phase-changed', () => refresh(false)))
+        unsubscribeEvents.push(electronAPI.events.on('aram-preferences-changed', (payload) => {
+            if (payload?.key === 'aram.benchNoCooldown') benchSwapEnabled.value = payload.value === true
+        }))
+        Promise.resolve(electronAPI.store?.get?.('aram.benchNoCooldown'))
+            .then((value) => { benchSwapEnabled.value = value === true })
+            .catch(() => {})
     }
 
     if (!previewMode.value) {
@@ -1021,5 +1063,34 @@ h3 {
 .aram-panel.compact .candidate-list::-webkit-scrollbar-thumb {
     border-radius: 4px;
     background: rgba(226, 192, 143, 0.36);
+}
+.bench-swap-btn {
+    flex: 0 0 auto;
+    align-self: center;
+    min-width: 34px;
+    height: 24px;
+    margin-left: 6px;
+    padding: 0 8px;
+    border: 1px solid rgba(226, 192, 143, 0.45);
+    border-radius: 4px;
+    color: #f4ecdc;
+    background: rgba(194, 156, 109, 0.28);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.bench-swap-btn:hover:not(:disabled) {
+    background: rgba(194, 156, 109, 0.45);
+}
+
+.bench-swap-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.bench-swap-icon {
+    width: 13px;
+    height: 13px;
 }
 </style>

@@ -33,6 +33,8 @@ const RENDERER_STORE_KEYS = new Set<AppStoreKey>([
   'postGameShare.autoShow',
   'postGameShare.comparePlayers',
   'postGameShare.popupWindow',
+  'aram.teammateAnalysis',
+  'aram.benchNoCooldown',
 ])
 
 function assertRendererStoreKey(key: unknown): asserts key is AppStoreKey {
@@ -88,6 +90,9 @@ export function registerPreferencesIpcHandlers(): void {
     }
     if (key === AUGMENT_HIGHLIGHT_MODE_STORE_KEY) {
       notifyAllWindows('augment-highlight-mode-changed', { mode: value })
+    }
+    if (key === 'aram.teammateAnalysis' || key === 'aram.benchNoCooldown') {
+      notifyAllWindows('aram-preferences-changed', { key, value: Boolean(value) })
     }
   })
 
