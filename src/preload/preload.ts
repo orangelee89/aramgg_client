@@ -85,6 +85,7 @@ const electronAPI: ElectronAPI = {
   appInfo: {
     getVersionInfo: () => ipcRenderer.invoke('get-version-info'),
     openLogDirectory: () => ipcRenderer.invoke('open-log-directory'),
+    runEnvironmentCheck: () => ipcRenderer.invoke('run-environment-check'),
   },
   appUpdate: {
     getState: () => ipcRenderer.invoke('app-update-get-state'),

@@ -14,6 +14,7 @@ import {
 import { logDiagnosticSnapshot } from '../modules/diagnostic-logger.ts'
 import logger from '../modules/logger.ts'
 import { getVersionInfo } from '../version-checker.ts'
+import { runEnvironmentCheck } from '../services/environment-check.ts'
 import {
     allowMainWindowClose,
     toggleMainWindow,
@@ -103,6 +104,16 @@ export function registerSystemIpcHandlers(): void {
   ipcMain.handle('app-update-check', async () => checkForAppUpdate('manual'))
   ipcMain.handle('app-update-download', async () => downloadAppUpdate())
   ipcMain.handle('app-update-install', async () => installDownloadedAppUpdate())
+
+  ipcMain.handle('run-environment-check', async () => {
+    try {
+      return { success: true, data: await runEnvironmentCheck() }
+    } catch (error) {
+      const message = (error as Error).message
+      logger.warn('[environment-check] failed:', message)
+      return { success: false, error: message }
+    }
+  })
 
   ipcMain.handle('open-log-directory', async () => {
     try {

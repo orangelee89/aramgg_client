@@ -488,6 +488,7 @@ let paddleOcrService = null
 let paddleOcrServicePromise = null
 let paddleOcrDisabled = false
 let paddleOcrUnavailableLogged = false
+let paddleOcrLastError = null
 let paddleOcrReadyLogged = false
 let ocrQueue = Promise.resolve()
 let AUGMENT_MATCH_ENTRIES = null
@@ -616,6 +617,7 @@ function getPaddleOcrModelPaths() {
 }
 
 function logPaddleOcrUnavailable(message) {
+    paddleOcrLastError = message
     if (paddleOcrUnavailableLogged) {
         return
     }
@@ -751,6 +753,18 @@ async function getPaddleOcrService() {
 
 async function warmupPaddleOcrService() {
     return Boolean(await getPaddleOcrService())
+}
+
+/**
+ * 环境检测用：尝试加载 PaddleOCR（已加载则直接返回），报告是否可用和失败原因。
+ */
+export async function probeOcrEngine() {
+    const ready = await warmupPaddleOcrService()
+    return {
+        ready,
+        modelsFound: Boolean(getPaddleOcrModelPaths()),
+        error: ready ? null : paddleOcrLastError,
+    }
 }
 
 async function resetPaddleOcrService() {

@@ -458,6 +458,22 @@ export interface LocaleInfo extends LooseRecord {
 }
 
 /** 按住 Tab 局内速查状态；supported 仅在 macOS 原生监听可用时为 true。 */
+export type EnvironmentCheckStatus = 'pass' | 'warn' | 'fail' | 'skip' | 'info'
+
+export interface EnvironmentCheckItem {
+  id: string
+  status: EnvironmentCheckStatus
+  /** 结果细分，renderer 用 `envCheck.items.<id>.<variant>` 取文案。 */
+  variant: string
+  params: Record<string, string | number | boolean | null>
+}
+
+export interface EnvironmentCheckReport {
+  checkedAt: number
+  platform: string
+  items: EnvironmentCheckItem[]
+}
+
 export interface TabGuideStatus {
   supported: boolean
   enabled: boolean
@@ -557,6 +573,7 @@ export interface ElectronAPI {
   appInfo: {
     getVersionInfo(): Promise<OperationResult & { data?: ClientVersionInfo }>
     openLogDirectory(): Promise<OperationResult>
+    runEnvironmentCheck(): Promise<OperationResult & { data?: EnvironmentCheckReport }>
   }
   appUpdate: {
     getState(): Promise<OperationResult & { data?: AppUpdateState }>

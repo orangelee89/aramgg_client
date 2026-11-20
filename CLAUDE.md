@@ -50,6 +50,8 @@ node tests/electron/test-augment-ocr-fixtures.js
 ## 发布与 CI
 
 - GitHub release workflow 使用 Node `22.18.0` 和 npm 10，依赖安装命令是 `npm ci --ignore-scripts`。
+- `onnxruntime.dll` 依赖 VC++ 2022 运行库（含老版本没有的 `MSVCP140_ATOMIC_WAIT.dll`）；`scripts/after-pack.cjs` 在 Windows 打包时把构建机 System32 的 VC++ 运行库 DLL 复制到 onnxruntime 原生目录（app-local），缺文件会让打包失败，不要删掉这一步。
+- 首页「环境检测」（`src/main/services/environment-check.ts`，IPC `run-environment-check`）逐项检查海克斯高亮的前置条件，只读不改设置；新增前置条件时同步加检测项和 README「下载前检查清单」。
 - 改动依赖或 lockfile 后，发布前用 `npx -p npm@10 npm ci --ignore-scripts` 校验，避免本地 npm 版本差异漏掉锁文件问题。
 - 正式发布使用 `npm run release:patch|minor|major` 和 `npm run release:push`，让 `npm version` 创建版本提交和 annotated `v*` tag。
 - `v*` tag 必须和 `package.json` 版本一致；清理错误 release 时只删除确认范围内的本地和远端 tag。
