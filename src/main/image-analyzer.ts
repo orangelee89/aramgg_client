@@ -1589,6 +1589,14 @@ function extractPaddleOcrSlotTexts(items = [], rowBounds = []) {
         .trim())
 }
 
+// 属性铁砧的属性碎片卡（「物理防御碎片 属性铁砧」等）和海克斯同一位置出现，但不是海克斯，
+// 不需要弹浮窗；海克斯数据里没有任何名字带这些词，直接跳过，避免被模糊匹配成某个海克斯。
+const STAT_ANVIL_SLOT_PATTERN = /碎片|属性铁砧|屬性鐵砧|stat\s*anvil|\bshards?\b/i
+
+export function isStatAnvilSlotText(rawText) {
+    return STAT_ANVIL_SLOT_PATTERN.test(String(rawText || ''))
+}
+
 async function buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, engine) {
     const augments = []
     const seenIds = new Set()
@@ -1600,6 +1608,19 @@ async function buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupR
         if (rawText === '') {
             slotDiagnostics.push({ slot: index, text: '', matchedId: null, titleFingerprint, ocrEngine: engine })
             logger.debug(`  ${engine} ordered title ${index + 1}: empty`)
+            continue
+        }
+
+        if (isStatAnvilSlotText(rawText)) {
+            slotDiagnostics.push({
+                slot: index,
+                text: rawText.slice(0, 80),
+                matchedId: null,
+                rejectReason: 'stat-anvil',
+                titleFingerprint,
+                ocrEngine: engine,
+            })
+            logger.debug(`  ${engine} ordered title ${index + 1}: stat anvil shard, skipped`)
             continue
         }
 

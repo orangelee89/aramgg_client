@@ -11,6 +11,7 @@ import {
   resolveFullOcrBackoffUntil,
   resolveGameflowCaptureInterval,
   resolveGameflowNextCaptureDelay,
+  CANDIDATE_CONFIRM_DELAY_MS,
   SELECTION_CANDIDATE_STREAK_THRESHOLD,
   shouldQueueFullCapture,
   shouldActivateSelectionCapture,
@@ -104,6 +105,14 @@ describe('automatic screenshot policy', () => {
       fullOcrCooldownUntil: now,
       now,
     })).toBe('full')
+  })
+
+  it('confirms a first candidate gate frame quickly instead of waiting the idle interval', () => {
+    const base = { mode: 'idle' as const, pendingFullCapture: false, now: 1000, intervalMs: GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS, elapsedMs: 120 }
+    expect(resolveGameflowNextCaptureDelay({ ...base, candidateStreak: 1 })).toBe(CANDIDATE_CONFIRM_DELAY_MS)
+    expect(resolveGameflowNextCaptureDelay({ ...base, candidateStreak: 0 })).toBe(GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS - 120)
+    expect(resolveGameflowNextCaptureDelay({ ...base, elapsedMs: 1400, candidateStreak: 1 })).toBe(100)
+    expect(resolveGameflowNextCaptureDelay({ ...base, mode: 'active-selection', intervalMs: 500, candidateStreak: 1 })).toBe(380)
   })
 
   it('runs a queued full capture immediately after gate confirmation', () => {
