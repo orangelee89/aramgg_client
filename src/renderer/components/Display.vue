@@ -218,6 +218,7 @@
                     </div>
                 </div>
 
+                <EnvironmentCheckPanel />
                 <ItemSetInstaller />
                 <OverlayPreferences
                     @post-game-auto-show-changed="setPostGameShareAutoShowEnabled"
@@ -415,6 +416,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ItemSetInstaller from './ItemSetInstaller.vue'
+import EnvironmentCheckPanel from './EnvironmentCheckPanel.vue'
 import OverlayPreferences from './OverlayPreferences.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import ChampionRankingsPanel from './ChampionRankingsPanel.vue'

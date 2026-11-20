@@ -34,6 +34,7 @@ export const electronAPI: ElectronAPI = {
   appInfo: {
     getVersionInfo: (...args) => requireElectronAPI().appInfo.getVersionInfo(...args),
     openLogDirectory: (...args) => requireElectronAPI().appInfo.openLogDirectory(...args),
+    runEnvironmentCheck: (...args) => requireElectronAPI().appInfo.runEnvironmentCheck(...args),
   },
   appUpdate: {
     getState: (...args) => requireElectronAPI().appUpdate.getState(...args),
