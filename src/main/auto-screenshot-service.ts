@@ -446,6 +446,7 @@ class AutoScreenshotService {
                     fullOcrCooldownUntil: this.fullOcrCooldownUntil,
                     intervalMs: activeInterval,
                     elapsedMs: elapsed,
+                    candidateStreak: this.candidateStreak,
                 })
                 : Math.max(0, activeInterval - elapsed)
             this._scheduleNextCapture(nextDelay, runId)
