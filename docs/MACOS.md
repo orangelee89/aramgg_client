@@ -30,8 +30,8 @@ existing update and manual-download fallback. Versioned recommendation-data
 refresh remains separate from application updates.
 GitHub Actions builds the Apple silicon ZIP alongside the Windows installer in
 `.github/workflows/release-windows.yml`. Both packaged smoke checks must pass
-before a tag creates a regular GitHub release, without replacing the stable
-Latest release. GitHub-only packages do not update the production client version
+before a tag creates a regular GitHub release marked as Latest.
+GitHub-only packages do not update the production client version
 configuration. Download the Mac ZIP from that release and extract it;
 the macOS CI also verifies all three bundled locale datasets and runs fixture OCR.
 
@@ -76,10 +76,11 @@ needed before shipping a supported installer.
 - Nonactivating Mac panels appear across fullscreen Spaces above the game's
   observed window level. Requested visibility is tracked separately from native
   occlusion, with bounded reordering that does not reopen manually hidden panels.
-- OCR preserves left/center/right title ordering. On macOS only, existing
-  recommendations can remain visible while hover tooltips obscure titles if all
-  three card frames are still present; this evidence does not identify new
-  augments. Windows does not compute card frames and keeps its clearing logic.
+- OCR keeps the left-to-right order of each three- or four-card offer. Both
+  platforms use card frames to choose the crop layout. On macOS only, existing
+  recommendations can remain visible when hover tooltips obscure titles but all
+  frames are still visible. Opening the overlay still requires title and reroll
+  evidence, and Windows keeps its existing clearing logic.
 - In-game quick guide (this PR): a complete core-item combination, later items,
   skill order and two augment recommendations per rarity, based on common
   champion data rather than live inventory. The guide uses the current match

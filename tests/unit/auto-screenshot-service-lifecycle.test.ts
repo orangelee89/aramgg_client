@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveCaptureStage } from '../../src/main/auto-screenshot-policy.ts'
 
 const mocks = vi.hoisted(() => ({
+  tencentSource: { start: vi.fn(), stop: vi.fn(), getCandidates: vi.fn(() => null) },
+  onTencentSelection: null as null | ((details: { at: number; index: number; key: string | null; id: number | null }) => void),
+  onTencentCandidates: null as null | ((timing: { observedAt: number; receivedAt: number }) => void),
   captureScreenshot: vi.fn(),
   analyzeScreenshot: vi.fn(),
   analyzeScreenshotGate: vi.fn(),
@@ -14,6 +17,14 @@ const mocks = vi.hoisted(() => ({
     warn: vi.fn(),
     error: vi.fn(),
     toBeijingISOString: vi.fn(() => '2026-08-30T12:00:00.000+08:00'),
+  },
+}))
+
+vi.mock('../../src/main/services/augments/tencent-augment-runtime.ts', () => ({
+  createTencentAugmentSource: (selected, candidatesReady) => {
+    mocks.onTencentSelection = selected
+    mocks.onTencentCandidates = candidatesReady
+    return mocks.tencentSource
   },
 }))
 
@@ -61,11 +72,6 @@ vi.mock('../../src/main/modules/app-store.ts', () => ({
 vi.mock('../../src/main/modules/app-paths.ts', () => ({
   getPartialOcrScreenshotDir: vi.fn(() => '/tmp/aramgg-client-ocr-test'),
 }))
-vi.mock('../../src/main/augment-partial-merge.ts', () => ({
-  createInitialPartialAugmentSelection: vi.fn(() => null),
-  getAugmentIds: vi.fn((augments = []) => augments.map(augment => String(augment.id))),
-  mergePartialAugments: vi.fn(() => null),
-}))
 vi.mock('../../src/main/modules/user-preferences.ts', () => ({
   shouldShowAugmentSidePanel: vi.fn(() => true),
   shouldShowAugmentTopOverlay: vi.fn(() => true),
@@ -98,13 +104,17 @@ const expectNextCaptureToUseGate = (service) => {
 describe.sequential('automatic screenshot service lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('ARAMGG_GAME_DIAGNOSTICS', undefined)
+    mocks.tencentSource.getCandidates.mockReturnValue(null)
     mocks.windows.length = 0
     mocks.prepareWindows.mockResolvedValue([])
   })
 
   afterEach(() => {
     autoScreenshotService.reset()
+    vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it('redisplays the same cards after repeated in-game collapse and expand cycles', async () => {
@@ -116,7 +126,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     const cards = {
       success: true,
       analysis: {
-        cardCount: 3, confidence: 0.95, isAugmentPhase: true,
+        slotCount: 3, cardCount: 3, confidence: 0.95, isAugmentPhase: true,
         augments: [{ id: 1 }, { id: 2 }, { id: 3 }],
         augmentGate: { titleActivity: { likely: true }, rerollButtons: { visible: true } },
       },
@@ -124,7 +134,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     const collapsed = {
       success: true,
       analysis: {
-        cardCount: 0, confidence: 0, isAugmentPhase: false, augments: [],
+        slotCount: 3, cardCount: 0, confidence: 0, isAugmentPhase: false, augments: [],
         augmentGate: { cardFramesVisible: false, ocrSkippedReason: 'no-likely-title-activity' },
       },
     }
@@ -153,7 +163,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     const result = {
       success: true,
       analysis: {
-        cardCount: 0, confidence: 0, isAugmentPhase: false, augments: [],
+        slotCount: 3, cardCount: 0, confidence: 0, isAugmentPhase: false, augments: [],
         augmentGate: { cardFramesVisible: true, ocrSkippedReason: 'no-visible-reroll-buttons' },
       },
     }
@@ -174,9 +184,225 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     expect(service.captureMode).toBe('idle')
   })
 
+  it('wakes the idle timer and uses one small visibility frame despite the OCR cooldown', async () => {
+    vi.useFakeTimers()
+    const service = createRunningIdleService()
+    service.interval = 500
+    service.idleInterval = 1500
+    service.candidateStreak = 0
+    service.pendingFullCapture = false
+    service.fullOcrCooldownUntil = Date.now() + 4000
+    const frame = Buffer.from('small-gate')
+    mocks.tencentSource.getCandidates.mockReturnValue([1, 2, 3].map(id => ({ id, name: `Augment ${id}` })))
+    mocks.captureScreenshot.mockResolvedValue({ success: true, buffer: frame })
+    mocks.analyzeScreenshotGate.mockResolvedValue({ success: true, likely: true, rerollVisible: true, slotCount: 3 })
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
+    service._scheduleNextCapture(1500, service.runId)
+    mocks.onTencentCandidates!({ observedAt: Date.now() - 100, receivedAt: Date.now() })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mocks.captureScreenshot).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ thumbnailSize: { width: 640, height: 360 } }))
+    expect(mocks.analyzeScreenshotGate).toHaveBeenCalledExactlyOnceWith(frame)
+    expect(mocks.analyzeScreenshot).not.toHaveBeenCalled()
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(service.lastDetectedAugmentIds).toEqual(['1', '2', '3'])
+    expect(service.captureMode).toBe('active-selection')
+  })
+
+  it('does not publish native candidates on a hidden panel, and bounds the faster retries', async () => {
+    vi.useFakeTimers()
+    const service = createRunningIdleService()
+    service.interval = 500
+    service.idleInterval = 1500
+    mocks.tencentSource.getCandidates.mockReturnValue([{ id: 1 }, { id: 2 }, { id: 3 }])
+    mocks.captureScreenshot.mockResolvedValue({ success: true, buffer: Buffer.from('hidden') })
+    mocks.analyzeScreenshotGate.mockResolvedValue({ success: true, likely: false, rerollVisible: false })
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
+    mocks.onTencentCandidates!({ observedAt: Date.now(), receivedAt: Date.now() })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(notify).not.toHaveBeenCalled()
+    expect(mocks.analyzeScreenshot).not.toHaveBeenCalled()
+    expect(service._getCurrentCaptureInterval()).toBe(1500)
+  })
+
+  it('does not reopen a selection that completes while the small gate is in flight', async () => {
+    const service = createRunningIdleService()
+    mocks.tencentSource.getCandidates.mockReturnValue([{ id: 1 }, { id: 2 }, { id: 3 }])
+    let finish!: (value: unknown) => void
+    mocks.analyzeScreenshotGate.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
+    const pending = service._analyzeGateScreenshot(Buffer.from('old-gate'))
+    mocks.onTencentSelection!({ at: Date.now(), index: 2, key: 'test_3', id: 3 })
+    expect(mocks.logger.info).toHaveBeenCalledWith('[tencent augments]', expect.objectContaining({ event: 'selection-completed', selectedAugmentId: 3 }))
+    finish({ success: true, likely: true, rerollVisible: true })
+    await pending
+    expect(notify).not.toHaveBeenCalled()
+    expect(service.lastDetectedAugmentIds).toEqual([])
+  })
+
+  it('waits for in-flight OCR before waking capture and discards its superseded result', async () => {
+    vi.useFakeTimers()
+    const service = createRunningIdleService()
+    let finish!: (value: unknown) => void
+    mocks.analyzeScreenshot.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const schedule = vi.spyOn(service, '_scheduleNextCapture')
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
+    const pending = service._drainAnalysisQueue(Buffer.from('old-frame'), service.runId)
+    mocks.onTencentCandidates!({ observedAt: Date.now(), receivedAt: Date.now() })
+    expect(schedule).not.toHaveBeenCalled()
+    finish({ success: true, analysis: { slotCount: 3, cardCount: 3, confidence: 1, isAugmentPhase: true, augments: [{ id: 1 }, { id: 2 }, { id: 3 }] } })
+    await pending
+    expect(notify).not.toHaveBeenCalled()
+    expect(schedule).toHaveBeenCalledExactlyOnceWith(0, service.runId)
+  })
+
+  it('does not run title OCR on a small frame when native candidates expire', async () => {
+    const service = createRunningIdleService()
+    mocks.tencentSource.getCandidates.mockReturnValue(null)
+    await service._analyzeScreenshot(Buffer.from('small-gate'), service.runId, { gateResult: { success: true, likely: true, rerollVisible: true }, tencentOnly: true })
+    expect(mocks.analyzeScreenshot).not.toHaveBeenCalled()
+  })
+
+  it('uses mapped Tencent candidates only after a visible selection gate, without title OCR', async () => {
+    const service = createRunningIdleService()
+    const candidates = [1, 2, 3, 4].map(id => ({ id, key: `test_${id}`, name: `Augment ${id}`, detectedSlot: id - 1 }))
+    mocks.tencentSource.getCandidates.mockReturnValue(candidates)
+    mocks.analyzeScreenshotGate.mockResolvedValue({ success: true, likely: true, rerollVisible: true, slotCount: 4 })
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
+    await service._analyzeScreenshot(Buffer.from('visible-selection'))
+    expect(mocks.analyzeScreenshot).not.toHaveBeenCalled()
+    expect(service.lastDetectedAugmentIds).toEqual(['1', '2', '3', '4'])
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ recognitionSource: 'tencent-log' }), service.runId)
+  })
+
+  it('falls back to OCR when the log candidate count disagrees with the visible layout', async () => {
+    const service = createRunningIdleService()
+    mocks.tencentSource.getCandidates.mockReturnValue([{ id: 1 }, { id: 2 }, { id: 3 }])
+    mocks.analyzeScreenshotGate.mockResolvedValue({ success: true, likely: true, rerollVisible: true, slotCount: 4 })
+    mocks.analyzeScreenshot.mockResolvedValue({ success: false })
+    const frame = Buffer.from('four visible slots')
+    await service._analyzeScreenshot(frame)
+    expect(mocks.analyzeScreenshot).toHaveBeenCalledWith(frame)
+  })
+
+  it.each([3, 4])('escalates a small-frame mismatch with %i native candidates to a full-size frame', async nativeCount => {
+    const service = createRunningIdleService()
+    service.pendingFullCapture = false
+    service.candidateStreak = 0
+    const native = [1, 2, 3, 4].slice(0, nativeCount).map((id, detectedSlot) => ({ id, detectedSlot }))
+    mocks.tencentSource.getCandidates.mockReturnValue(native)
+    const small = Buffer.from('small')
+    const full = Buffer.from('full')
+    const smallSlotCount = nativeCount === 4 ? 3 : 4
+    mocks.analyzeScreenshotGate.mockImplementation(async frame => ({
+      success: true, likely: true, rerollVisible: true, slotCount: frame === small ? smallSlotCount : 4,
+    }))
+    mocks.captureScreenshot.mockImplementation(async ({ thumbnailSize }) =>
+      ({ success: true, buffer: thumbnailSize.width === 640 ? small : full }))
+    const augments = [11, 12, 13, 14].map((id, detectedSlot) => ({ id, detectedSlot }))
+    mocks.analyzeScreenshot.mockResolvedValue({ success: true, analysis: {
+      slotCount: 4, cardCount: 4, augments, isAugmentPhase: true, confidence: 0.95,
+      augmentGate: { titleActivity: { likely: true }, rerollButtons: { visible: true } },
+    } })
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
+    expect((await service._captureScreenshot()).stage).toBe('gate')
+    expect((await service._captureScreenshot()).stage).toBe('gate')
+    expect(notify).not.toHaveBeenCalled()
+    expect((await service._captureScreenshot()).stage).toBe('full')
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(1))
+    if (nativeCount === 4) {
+      expect(mocks.analyzeScreenshot).not.toHaveBeenCalled()
+      expect(service.lastDetectedAugmentIds).toEqual(['1', '2', '3', '4'])
+    } else {
+      expect(mocks.analyzeScreenshot).toHaveBeenCalledExactlyOnceWith(full)
+      expect(service.lastDetectedAugmentIds).toEqual(['11', '12', '13', '14'])
+    }
+  })
+
+  it('publishes a partial four-slot offer between complete three-slot offers', async () => {
+    const service = createRunningIdleService()
+    vi.spyOn(service, '_savePartialOcrScreenshot').mockImplementation(() => {})
+    const send = vi.spyOn(service, '_sendAugmentDetectedPayload').mockImplementation(() => {})
+    const results = [[1, 2, 3], [1, 2, 3, null], [1, 2, 3, 4], [1, 2, 3]]
+    for (const ids of results) {
+      const augments = ids.flatMap((id, detectedSlot) => id === null ? [] : [{ id, detectedSlot }])
+      const complete = ids.length === augments.length
+      mocks.analyzeScreenshot.mockResolvedValue({ success: true, analysis: {
+        slotCount: ids.length, cardCount: augments.length, isAugmentPhase: complete,
+        confidence: complete ? 0.95 : 0.5, augments,
+        augmentGate: { titleActivity: { likely: true }, rerollButtons: { visible: true } },
+      } })
+      await service._analyzeScreenshot(Buffer.from('selection frame'))
+    }
+    expect(send.mock.calls.map(([payload]) => payload.augments.map(augment => augment.id))).toEqual(results)
+    const [partial] = send.mock.calls[1]
+    expect(partial.augments[3]).toMatchObject({ id: null, missing: true, detectedSlot: 3 })
+    expect(service._isCurrentAugmentPayload(partial)).toBe(false)
+  })
+
+  it('preserves OCR fallback when Tencent mapping is unavailable or the gate is absent', async () => {
+    const service = createRunningIdleService()
+    mocks.analyzeScreenshot.mockResolvedValue({ success: false, error: 'fixture-miss' })
+    await service._analyzeScreenshot(Buffer.from('frame'))
+    expect(mocks.analyzeScreenshot).toHaveBeenCalledTimes(1)
+    mocks.tencentSource.getCandidates.mockReturnValue([{ id: 1 }, { id: 2 }, { id: 3 }])
+    mocks.analyzeScreenshotGate.mockResolvedValue({ success: true, likely: false, rerollVisible: false })
+    await service._analyzeScreenshot(Buffer.from('closed-panel'))
+    expect(mocks.analyzeScreenshot).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not reopen the overlay when a native pick arrives during title OCR', async () => {
+    const service = createRunningIdleService()
+    service.lastDetectedAugments = [1, 2, 3, 4].map((id, detectedSlot) => ({ id, detectedSlot }))
+    service.lastDetectedAugmentIds = ['1', '2', '3', '4']
+    let finish!: (result: unknown) => void
+    mocks.analyzeScreenshot.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
+    const pending = service._analyzeScreenshot(Buffer.from('old-frame'))
+    mocks.onTencentSelection!({ at: Date.now(), index: 3, key: 'test_4', id: 4 })
+    finish({ success: true, analysis: { slotCount: 4, cardCount: 4, confidence: 1, isAugmentPhase: true,
+      augments: [1, 2, 3, 4].map((id, detectedSlot) => ({ id, detectedSlot })),
+    } })
+    await pending
+    expect(service.lastDetectedAugmentIds).toEqual([])
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('continues with OCR if the optional Tencent visibility gate throws', async () => {
+    const service = createRunningIdleService()
+    mocks.tencentSource.getCandidates.mockReturnValue([{ id: 1 }, { id: 2 }, { id: 3 }])
+    mocks.analyzeScreenshotGate.mockRejectedValue(new Error('gate unavailable'))
+    mocks.analyzeScreenshot.mockResolvedValue({ success: false, error: 'fixture-miss' })
+    const frame = Buffer.from('frame')
+    await service._analyzeScreenshot(frame)
+    expect(mocks.analyzeScreenshot).toHaveBeenCalledWith(frame)
+  })
+
+  it('stops the optional source on phase exit and restarts it only in game', () => {
+    const service = createRunningIdleService()
+    service.setGameflowPhase('InProgress')
+    expect(mocks.tencentSource.start).toHaveBeenCalledTimes(1)
+    service.setGameflowPhase('ChampSelect')
+    expect(mocks.tencentSource.stop).toHaveBeenCalled()
+    expect(service.isAnalysisAllowedByGameflow()).toBe(false)
+  })
+
+  it('does not keep reading logs when analysis is disabled during a match', () => {
+    const service = createRunningIdleService()
+    service.setGameflowPhase('InProgress')
+    expect(mocks.tencentSource.start).toHaveBeenCalledTimes(1)
+    service.setConfig({ enableAnalysis: false })
+    expect(mocks.tencentSource.stop).toHaveBeenCalled()
+    service.setGameflowPhase('InProgress')
+    expect(mocks.tencentSource.start).toHaveBeenCalledTimes(1)
+    service.setConfig({ enableAnalysis: true })
+    expect(mocks.tencentSource.start).toHaveBeenCalledTimes(2)
+  })
+
   it('delivers the first detection only after the on-demand renderer is ready', async () => {
     const service = createRunningIdleService()
+    const payload = { augments: [{ id: 1 }, { id: 2 }, { id: 3 }] }
     service.lastDetectedAugmentIds = ['1', '2', '3']
+    service.lastDetectedAugments = payload.augments
     let ready!: () => void
     mocks.prepareWindows.mockReturnValue(new Promise<void>(resolve => { ready = resolve }))
     const send = vi.fn()
@@ -184,7 +410,6 @@ describe.sequential('automatic screenshot service lifecycle', () => {
       isDestroyed: () => false,
       webContents: { getURL: () => 'http://localhost/#/floating-overlay', send },
     })
-    const payload = { augments: [{ id: 1 }, { id: 2 }, { id: 3 }] }
     const pending = service._sendAugmentDetectedPayload(payload)
     expect(send).not.toHaveBeenCalled()
     ready()
@@ -194,7 +419,9 @@ describe.sequential('automatic screenshot service lifecycle', () => {
 
   it('does not deliver a detection if stopped while its window is loading', async () => {
     const service = createRunningIdleService()
+    const payload = { augments: [{ id: 1 }, { id: 2 }, { id: 3 }] }
     service.lastDetectedAugmentIds = ['1', '2', '3']
+    service.lastDetectedAugments = payload.augments
     let ready!: () => void
     mocks.prepareWindows.mockReturnValue(new Promise<void>(resolve => { ready = resolve }))
     const send = vi.fn()
@@ -202,7 +429,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
       isDestroyed: () => false,
       webContents: { getURL: () => 'http://localhost/#/floating-overlay', send },
     })
-    const pending = service._sendAugmentDetectedPayload({ augments: [{ id: 1 }, { id: 2 }, { id: 3 }] })
+    const pending = service._sendAugmentDetectedPayload(payload)
     service.stop('gameflow')
     ready()
     await pending
@@ -265,7 +492,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
       success: true,
       timestamp: Date.now(),
       analysis: {
-        cardCount: 3,
+        slotCount: 3, cardCount: 3,
         confidence: 0.95,
         isAugmentPhase: true,
         augments: [{ id: 1 }, { id: 2 }, { id: 3 }],
@@ -326,7 +553,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
       success: true,
       timestamp: Date.now(),
       analysis: {
-        cardCount: 0,
+        slotCount: 3, cardCount: 0,
         confidence: 0,
         isAugmentPhase: false,
         augments: [],
@@ -356,7 +583,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
       success: true,
       timestamp: Date.now(),
       analysis: {
-        cardCount: 1,
+        slotCount: 3, cardCount: 1,
         confidence: 0.75,
         isAugmentPhase: false,
         augments: [{ id: 1, name: '测试海克斯', detectedSlot: 0 }],
@@ -376,5 +603,27 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     expect(service.candidateStreak).toBe(0)
     expect(service.fullOcrCooldownUntil).toBeGreaterThan(startedAt)
     expectNextCaptureToUseGate(service)
+  })
+
+  it.each([undefined, '1'])('keeps partial slot diagnostics opt-in without changing recognition: %s', async (flag) => {
+    vi.stubEnv('ARAMGG_GAME_DIAGNOSTICS', flag)
+    const service = createRunningIdleService()
+    vi.spyOn(service, '_savePartialOcrScreenshot').mockImplementation(() => {})
+    mocks.analyzeScreenshot.mockResolvedValue({
+      success: true, analysis: {
+        slotCount: 3, cardCount: 2, confidence: 0.2, isAugmentPhase: true,
+        augments: [{ id: 1413, detectedSlot: 0 }, { id: 1048, detectedSlot: 2 }],
+        slotDiagnostics: [], augmentGate: { titleActivity: { likely: true }, rerollButtons: { visible: true } },
+      },
+    })
+    await service._analyzeScreenshot(Buffer.from('partial-frame'))
+    if (flag === '1') {
+      expect(mocks.logger.debug).toHaveBeenCalledWith('Augment selection UI observed', {
+        candidateSlots: [1413, null, 1048], slotCount: 3, cardCount: 2, confidence: 0.2, recognitionSource: 'ocr',
+      })
+    } else {
+      expect(mocks.logger.debug.mock.calls.some(([message]) => message === 'Augment selection UI observed')).toBe(false)
+    }
+    expect(service.captureMode).toBe('active-selection')
   })
 })
