@@ -61,6 +61,8 @@ import {
 import { getAppDataDir } from './app-paths.ts'
 import { getLcuConnectionState, observeLcuGameflow, setLcuConnectionState } from './lcu-connection-state.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
+import { startGameDiagnostics, observeGameDiagnosticPhase, stopGameDiagnostics } from '../services/diagnostics/game-diagnostics.ts'
+import { isGameDiagnosticsEnabled } from '../services/diagnostics/diagnostic-settings.ts'
 import {
     startPerformanceMonitor,
     stopPerformanceMonitor,
@@ -175,6 +177,7 @@ export async function init({ startBackgroundServices = true } = {}) {
         logFile: logger.getCurrentLogFile(),
     })
     if (startBackgroundServices) {
+        startGameDiagnostics({ version: app.getVersion(), packaged: app.isPackaged })
         logDiagnosticSnapshot('startup').catch((error) => {
             logger.warn('[diagnostics] startup snapshot failed:', error.message)
         })
@@ -402,7 +405,7 @@ function getLcuDiagnosticEndpoints(phase) {
 }
 
 async function logReadOnlyGameApiDiagnostics(lcuService, phase, reason, force = false) {
-    if (!phase || gameApiDiagnosticInFlight) {
+    if (!isGameDiagnosticsEnabled() || !phase || gameApiDiagnosticInFlight) {
         return
     }
 
@@ -1219,6 +1222,7 @@ async function initGameFlowMonitor() {
                 return
             }
 
+            observeGameDiagnosticPhase(phase, source)
             autoScreenshotService.setGameflowPhase(phase)
             setAppUpdateGamePhase(phase)
             setChampionMonitorPhase(phase)
@@ -1474,6 +1478,7 @@ async function runQuitCleanup(reason = 'app quit') {
         logger.info('自动截图服务已停止')
     }
 
+    await stopGameDiagnostics(reason)
     await logger.cleanupOldLogs(7)
 }
 

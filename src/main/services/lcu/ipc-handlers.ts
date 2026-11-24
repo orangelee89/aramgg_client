@@ -97,6 +97,7 @@ export function registerLCUIpcHandlers(): void {
           champSelectSession: null,
           localPlayerCellId: null,
           selfChampionId: null,
+          subsetChampionIds: [],
           benchEnabled: false,
           benchChampions: [],
           myTeam: [],
@@ -184,10 +185,13 @@ export function registerLCUIpcHandlers(): void {
       const summary = {
         status: recommendation.status,
         snapshotStatus: snapshot.status,
+        allowSubsetChampionPicks: snapshot.champSelectSession?.allowSubsetChampionPicks ?? null,
         selfChampionId: snapshot.selfChampionId,
+        subsetChampionIds: snapshot.subsetChampionIds || [],
         benchChampionIds: snapshot.benchChampions.map((champion) => champion.championId),
         candidateChampionIds: recommendation.candidates?.map((candidate) => candidate.championId) || [],
         candidateCount: recommendation.candidates?.length || 0,
+        candidateSources: recommendation.candidates?.map(({ championId, source }) => ({ championId, source })) || [],
         durationMs: Date.now() - startedAt,
       }
 
@@ -196,6 +200,7 @@ export function registerLCUIpcHandlers(): void {
         summary.selfChampionId || 'none',
         summary.benchChampionIds.join(','),
         summary.candidateChampionIds.join(','),
+        JSON.stringify(summary.candidateSources),
       ].join(':')
       if (recommendationLogSignature !== lastAramBenchRecommendationLogSignature) {
         lastAramBenchRecommendationLogSignature = recommendationLogSignature

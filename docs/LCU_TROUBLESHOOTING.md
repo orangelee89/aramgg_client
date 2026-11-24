@@ -148,9 +148,40 @@ lcu-get-aram-bench-recommendation
 3. 确认 `benchEnabled` 和 `benchChampions` 是否符合当前模式。
 4. 确认网络或缓存能加载英雄统计；缺数据时会降级展示，不应中断。
 
-选人结构排查时，查看当天主日志中的 `[LCU] champ-select raw session diagnostic`。该日志只记录顶层字段、候选数组摘要和 championId 路径，不写完整 LCU session payload；如果字段或候选结构没有变化，会自动去重。阶段切换时的 `[LCU diagnostics] read-only endpoint snapshot` 会保留默认可见，持续 heartbeat 诊断则需要 `LOG_LEVEL=DEBUG`。
+选人结构排查时，启动前设置 `ARAMGG_GAME_DIAGNOSTICS=1` 和 `LOG_LEVEL=DEBUG` 可在主日志查看 `[LCU] champ-select raw session diagnostic` 和 `[LCU diagnostics] read-only endpoint snapshot`。前者只记录字段和 championId 摘要并去重；默认不遍历这些结构或执行额外探测。
+
+## 初始英雄卡片与席位推荐
+
+本人初始候选来自只读 `GET /lol-lobby-team-builder/champ-select/v1/subset-champion-list`，返回有序的英雄 ID 数组。本机客户端的 `ChampionCardSelectComponent.cardsDisplayDetails` 使用这个集合绘制卡片；实录已分别取得 `[875,111,266]` 和 `[105,26]`，不应假定总是三个。该端点是客户端内部 LCU 接口，不是已承诺兼容性的公开开发者 API。
+
+当会话 `allowSubsetChampionPicks === true` 且尚未取得本人的英雄时，快照 `subsetChampionIds` 将这些 ID 加入英雄详情窗口的席位推荐，来源标为“候选卡”。完整候选使用已有本地统计排序，并与当前英雄、公共席位、队友去重；尚未选定时从本人的卡片中给出初选建议，其余英雄仍可查看。卡片接口在选定后仍可能返回旧数组，因此选定后不再将它作为可用候选；继续使用实际 `benchChampions` 和 `myTeam`。接口缺失、格式异常或超时都保留原有推荐逻辑。
+
+这个数组没有玩家分组或归属字段，已闭合的消费链对应本人的卡片。`myTeam[].championId` / `championPickIntent` 只代表队友当前英雄或预选，并不是他们各自的完整候选卡；目前没有取得其他玩家候选卡列表的接口证据。不要把 `pickable-champion-ids` 当作他们的随机候选。
+
+### 诊断日志
+
+默认只保留变化后的推荐摘要和异常。`ARAMGG_GAME_DIAGNOSTICS=1` 才启用 `[champ-select diagnostics]`，其 DEBUG 事件归入统一 `capture.jsonl`，不会在 INFO 主日志重复刷心跳。完成一局并正常退出后保留 `logs/game-diagnostics/<runId>/` 即可；启动日志的 `directory` 给出实际位置。开启方法见 [统一采集说明](./AUGMENT_API_CAPTURE.md)。
+
+所有记录包含本地 `runId`、日志时间和选人持续毫秒数，连接重建会产生新分组：
+
+| 记录后缀 | 用途 |
+| --- | --- |
+| `start` / `end` | 选人进入、退出及请求数、收到的相关推送数 |
+| `session-http` / `session-websocket` | queueId、allowSubsetChampionPicks、自选/队伍/公共 bench 英雄、动作完成状态和 timer.phase |
+| `subset-http` | 读取状态、卡片数组、顺序、耗时、失败码；`responseSource` 标明实际来源，`cacheHit` 区分缓存复用；`requestCount` 统计诊断读取次数，不等同 HTTP 请求数 |
+| `subset-websocket` | 实际收到的卡片资源 uri、事件类型和 ID 顺序，删除事件也保留 |
+| `candidate-coverage` | 当前推荐输入和卡片 ID 的差异，`missingFromRecommendation` 显示尚未进入推荐输入的卡片 |
+| `stale-response` | 退出选人后才返回的请求，被丢弃且不会记到下一组选人中 |
+
+只有选人期间会 GET 卡片接口，推荐与诊断共用请求及缓存，最多每 2 秒一次、单次超时 1.5 秒。进入选人即后台预取，推送立即更新；首次无缓存的推荐最多等候 150 毫秒，超出预算先展示已有数据并由后续刷新补齐。缓存最多保留 6 秒，接口失败、空数组、删除、退出选人和连接重建均会使相应数据失效，旧请求不能覆盖新推送或下一局。详细诊断开启后，对变化立即记录，未变化时每 10 秒保留心跳，日志仅保留前 24 个 ID 并标明截断；正式推荐保留全部 ID。未设置开关或 `ARAMGG_GAME_DIAGNOSTICS=0` 都不影响候选卡推荐。
+
+`[LCU] ARAM bench recommendation completed` 另记录 `subsetChampionIds` 和实际输出的 `candidateSources`。尚未选定且卡片成功载入时，`missingFromRecommendation` 应为空；首次请求尚未完成或选定后原卡片已不可用时，差异可能存在，不单独代表失败。日志不保存完整会话、聊天内容、玩家身份或认证信息。
+
+验收时核对：进入选人是否有 start；`allowSubsetChampionPicks` 为真时是否获得 200 和正确的卡片顺序；选择/交换后 session 与候选来源是否一致；退出选人是否有 end。推送计数为 0 只说明本轮未收到该事件，HTTP 探测仍能提供证据。局内接口、腾讯日志和截图/OCR 记录在同一时间线。国服已接入腾讯日志候选与本地选完事件，日志不可用或候选映射不完整时自动使用 OCR；触发条件、回退及测试步骤见 [AUGMENT_API_CAPTURE.md](./AUGMENT_API_CAPTURE.md#腾讯日志优先与-ocr-回退)。
 
 ## 安全边界
+
+选人及局内采集均随 client 启停，采集范围与测试步骤见 [AUGMENT_API_CAPTURE.md](./AUGMENT_API_CAPTURE.md)。
 
 排障时不要为了“修复推荐”接入会改变选人结果的 LCU 接口。禁止推荐链路调用：
 

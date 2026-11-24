@@ -74,6 +74,9 @@ async function assertFixtureResult(analyzeScreenshot, input, sample, variant) {
     const result = await analyzeScreenshot(input)
 
     assert.equal(result.success, true, `${sample.file} (${variant}): analysis should succeed`)
+    assert.equal(result.analysis.slotCount, sample.expectedSlotCount ?? 3, `${sample.file} (${variant}): layout size`)
+    assert.equal(result.analysis.isAugmentPhase, sample.expectedCardCount === (sample.expectedSlotCount ?? 3),
+        `${sample.file} (${variant}): recognition should only be complete when all slots match`)
     assert.equal(
         result.analysis.cardCount,
         sample.expectedCardCount,
@@ -89,9 +92,13 @@ async function assertFixtureResult(analyzeScreenshot, input, sample, variant) {
         sample.expectedNames,
         `${sample.file} (${variant}): augment names should remain stable`
     )
+    if (sample.expectedDetectedSlots || result.analysis.isAugmentPhase) {
+        assert.deepEqual(result.analysis.augments.map(augment => augment.detectedSlot),
+            sample.expectedDetectedSlots ?? sample.expectedIds.map((_, slot) => slot), `${sample.file} (${variant}): slot order`)
+    }
 
     const engines = enginesOf(result.analysis.slotDiagnostics)
-    if (variant === '1280x720' || engines.length > 0) {
+    if (variant === 'source' || engines.length > 0) {
         assert.deepEqual(engines, ['paddleocr'], `${sample.file} (${variant}): OCR engine should be PaddleOCR only`)
     }
 
@@ -109,6 +116,7 @@ async function assertGateResult(analyzeScreenshotGate, input, sample, variant) {
     const result = await analyzeScreenshotGate(input)
 
     assert.equal(result.success, true, `${sample.file} (${variant}): gate analysis should succeed`)
+    assert.equal(result.slotCount, sample.expectedSlotCount ?? 3, `${sample.file} (${variant}): gate layout size`)
     assert.equal(
         result.likely,
         true,
@@ -145,7 +153,7 @@ async function main() {
 
     for (const sample of manifest) {
         const imagePath = path.join(fixturesDir, sample.file)
-        await assertFixtureResult(analyzeScreenshot, imagePath, sample, '1280x720')
+        await assertFixtureResult(analyzeScreenshot, imagePath, sample, 'source')
         if (sample.expectedCardCount > 0) {
             const gateBuffer = await sharp(imagePath)
                 .resize(640, 360, { fit: 'fill' })
@@ -172,6 +180,35 @@ async function main() {
             if (sample.expectedCardCount > 0) {
                 await assertGateResult(analyzeScreenshotGate, nativeFrame, sample, variant)
             }
+        }
+        if (sample.expectedSlotCount === 4) {
+            const missingSecondCard = {
+                ...sample,
+                expectedCardCount: 3,
+                expectedIds: [sample.expectedIds[0], ...sample.expectedIds.slice(2)],
+                expectedNames: [sample.expectedNames[0], ...sample.expectedNames.slice(2)],
+                expectedDetectedSlots: [0, 2, 3],
+            }
+            // Cover only the second card title, leaving the four frames and reroll controls visible.
+            const blockedTitle = await sharp(imagePath).composite([{
+                input: { create: { width: 110, height: 25, channels: 3, background: '#091114' } },
+                left: 268, top: 168,
+            }]).png().toBuffer()
+            await assertFixtureResult(analyzeScreenshot, blockedTitle, missingSecondCard, 'covered-title')
+
+            // A tooltip or animation can obscure a whole frame as well as its title.
+            const blockedCard = await sharp(imagePath).composite([{
+                input: { create: { width: 150, height: 270, channels: 3, background: '#091114' } },
+                left: 251, top: 68,
+            }]).png().toBuffer()
+            await assertGateResult(analyzeScreenshotGate, await sharp(blockedCard).resize(640, 360).png().toBuffer(), sample, 'covered-card')
+            await assertFixtureResult(analyzeScreenshot, blockedCard, missingSecondCard, 'covered-card')
+
+            // Center the same cards at the tighter spacing of the regular client frames.
+            const compact = await sharp(imagePath).resize(758, 450, { fit: 'fill' })
+                .extend({ left: 29, right: 29, top: 0, bottom: 0, background: '#101820' }).png().toBuffer()
+            await assertGateResult(analyzeScreenshotGate, await sharp(compact).resize(640, 360).png().toBuffer(), sample, 'compact')
+            await assertFixtureResult(analyzeScreenshot, await sharp(compact).resize(1024, 576).png().toBuffer(), sample, 'compact')
         }
     }
 }
